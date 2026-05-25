@@ -23,8 +23,8 @@ class Settings(BaseSettings):
     RAW_DATA_DIR: str = Field(default=os.path.join(BASE_DIR, "data", "raw"), env="RAW_DATA_DIR")
 
     # Model Settings
-    GROQ_TEXT_MODEL: str = "llama-3.3-70b-specdec"
-    GROQ_VISION_MODEL: str = "llama-3.2-11b-vision-preview"
+    GROQ_TEXT_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_VISION_MODEL: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     LOCAL_EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
 
     # Server Settings
