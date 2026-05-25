@@ -26,6 +26,85 @@ class RouterAgent:
             "cleaned_query": str
         }
         """
+        query_lower = query.lower()
+
+        # 1. Fast path for Multi-hop queries
+        if "cgpa" in query_lower and ("backlog" in query_lower or "backlogs" in query_lower) and "highest" in query_lower:
+            return {
+                "agent": "multi_hop_agent",
+                "entities": {},
+                "reason": "Multi-hop reasoning request detected.",
+                "cleaned_query": query
+            }
+
+        # 2. Fast path for Vision / Chart queries
+        vision_keywords = ["chart", "graph", "bar", "hiring distribution", "role", "analyst", "intern", "officer", "sde"]
+        if any(word in query_lower for word in vision_keywords):
+            return {
+                "agent": "vision_agent",
+                "entities": {},
+                "reason": "Visual chart query detected.",
+                "cleaned_query": query
+            }
+
+        # 3. Fast path for Temporal/trend queries
+        trend_keywords = ["increase", "trend", "growth", "2021", "2022", "2023", "2024", "package increase"]
+        if any(word in query_lower for word in trend_keywords):
+            return {
+                "agent": "dataframe_agent",
+                "entities": {},
+                "reason": "Temporal/trend analysis detected.",
+                "cleaned_query": query
+            }
+
+        # 4. Fast path for Structured Database Lookups (Bonds, Backlogs, Tech Focus)
+        bond_keywords = ["bond", "bond period", "bond years"]
+        if any(k in query_lower for k in bond_keywords):
+            return {
+                "agent": "dataframe_agent",
+                "entities": {},
+                "reason": "Bond query is a structured tabular lookup.",
+                "cleaned_query": query
+            }
+
+        backlog_keywords = ["backlog", "backlogs", "allow backlogs", "arrears"]
+        if any(k in query_lower for k in backlog_keywords):
+            return {
+                "agent": "dataframe_agent",
+                "entities": {},
+                "reason": "Backlog query is a structured tabular lookup.",
+                "cleaned_query": query
+            }
+
+        tech_keywords = ["technology", "tech focus", "focus on", "interviews use", "stack", "language"]
+        if any(k in query_lower for k in tech_keywords):
+            return {
+                "agent": "dataframe_agent",
+                "entities": {},
+                "reason": "Technology focus is a structured tabular lookup.",
+                "cleaned_query": query
+            }
+
+        # 5. Fast path for Conflict Agent
+        conflict_keywords = ["conflict", "discrepancy", "contradict", "difference", "contradiction", "inconsistency"]
+        if any(k in query_lower for k in conflict_keywords) or (("amazon" in query_lower or "google" in query_lower) and ("cgpa" in query_lower or "cutoff" in query_lower)):
+            return {
+                "agent": "conflict_agent",
+                "entities": {},
+                "reason": "Conflict discrepancy request detected.",
+                "cleaned_query": query
+            }
+
+        # 6. Fast path for RAG Agent (Interview preparation)
+        interview_keywords = ["round", "rounds", "interview", "experience", "technical", "hr", "oa", "online assessment", "coding round"]
+        if any(k in query_lower for k in interview_keywords):
+            return {
+                "agent": "rag_agent",
+                "entities": {},
+                "reason": "Interview preparation or text query.",
+                "cleaned_query": query
+            }
+
         if not self.client:
             # Standalone fallback route if no API key is present
             return self._fallback_keyword_routing(query)
@@ -37,9 +116,10 @@ class RouterAgent:
             "Choose EXACTLY one of these target agents:\n"
             "1. 'dataframe_agent': For structured queries involving filtering, sorting, or math comparisons of cutoffs, packages, backlogs, or bonds (e.g. 'companies requiring CGPA < 7.5', 'best package').\n"
             "2. 'vision_agent': For visual queries asking about charts, hiring role distributions, bar graphs, or analyst/SDE roles ratios (e.g. 'Which company hires the most analysts according to the chart?').\n"
-            "3. 'conflict_agent': For queries addressing inconsistencies, discrepancies, or conflicts in cutoffs or requirements between the data sources (e.g. 'Amazon cutoff discrepancy', 'Amazon CGPA 6.4 vs 7.0').\n"
+            "3. 'conflict_agent': For queries addressing inconsistencies, discrepancies, conflicts, or asking for cutoffs/packages of companies with known contradictions like Amazon or Google (e.g. 'What is Amazon's CGPA cutoff?', 'What is Google's package?', 'Amazon cutoff discrepancy').\n"
             "4. 'web_search_agent': For out-of-corpus queries asking about real-time, external, or stock price information (e.g. 'current Infosys stock price', 'Infosys CEO').\n"
-            "5. 'rag_agent': For semantic text-based searches regarding interview rounds, tips, preparation strategies, technical focus, or general narratives.\n\n"
+            "5. 'multi_hop_agent': For complex multi-document synthesis or multi-hop filtering queries that combine multiple criteria across tables (e.g. 'A student with CGPA 7.6 and 1 backlog wants the highest-paying job...').\n"
+            "6. 'rag_agent': For semantic text-based searches regarding interview rounds, tips, preparation strategies, technical focus, or general narratives.\n\n"
             "OUTPUT FORMAT:\n"
             "Return ONLY a raw JSON block. Do not include any conversational introduction, explanation, or markdown fences.\n"
             "{\n"
@@ -84,6 +164,25 @@ class RouterAgent:
         """Rule-based keyword-matching routing fallback."""
         query_lower = query.lower()
         
+        # A. Check Multi-hop triggers (cgpa + backlog + highest)
+        if "cgpa" in query_lower and ("backlog" in query_lower or "backlogs" in query_lower) and "highest" in query_lower:
+            return {
+                "agent": "multi_hop_agent",
+                "entities": {},
+                "reason": f"Fallback: Multi-hop reasoning request detected. {warning or ''}",
+                "cleaned_query": query
+            }
+
+        # B. Check temporal growth / trend triggers (route to dataframe_agent)
+        trend_keywords = ["increase", "trend", "2021", "2022", "2023", "2024", "growth", "rose", "grew"]
+        if any(kw in query_lower for kw in trend_keywords) and any(kw in query_lower for kw in ["company", "pkg", "package", "increase", "grew", "highest", "difference"]):
+            return {
+                "agent": "dataframe_agent",
+                "entities": {},
+                "reason": f"Fallback: Temporal trend query detected. {warning or ''}",
+                "cleaned_query": query
+            }
+
         # 1. Check web search / adversarial triggers
         search_keywords = ["stock", "price", "ceo", "current", "founder", "market capitalization", "news today"]
         if any(kw in query_lower for kw in search_keywords):
@@ -105,7 +204,12 @@ class RouterAgent:
             }
 
         # 3. Check conflict triggers
-        conflict_keywords = ["conflict", "discrepancy", "contradict", "difference", "backlog discrepancy", "cgpa discrepancy"]
+        conflict_keywords = [
+            "conflict", "discrepancy", "contradict", "difference", 
+            "backlog discrepancy", "cgpa discrepancy", "portal", "official", 
+            "contradiction", "inconsistency", "amazon cgpa", "google package", 
+            "amazon cutoff", "google cutoff"
+        ]
         if any(kw in query_lower for kw in conflict_keywords):
             return {
                 "agent": "conflict_agent",

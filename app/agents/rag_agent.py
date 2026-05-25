@@ -19,14 +19,58 @@ class RagAgent:
     def process_query(self, query: str, company_filter: str = None) -> str:
         """
         Retrieves matching semantic context and answers the user's question.
-        Applies company filters if specified to reduce indexing cross-talk.
+        Applies company and section filters to reduce indexing cross-talk.
         """
-        # 1. Retrieve top 5 semantic context chunks from database
-        results = self.db_manager.query(
-            query_text=query,
-            n_results=5,
-            company_filter=company_filter
-        )
+        query_lower = query.lower()
+        interview_keywords = [
+            "round",
+            "rounds",
+            "interview",
+            "experience",
+            "technical",
+            "hr",
+            "oa",
+            "online assessment",
+            "coding round"
+        ]
+        
+        is_interview_query = any(word in query_lower for word in interview_keywords)
+
+        # 1. Retrieve semantic context chunks from database
+        if is_interview_query:
+            print("🔍 [RAG Pipeline] Searching interview chunks...")
+            # Query top 10 matches without initial hard filters to allow manual matching
+            raw_results = self.db_manager.query(
+                query_text=query,
+                n_results=10
+            )
+            
+            results = []
+            for r in raw_results:
+                text_clean = r["text"].lower()
+                meta = r["metadata"]
+                section = meta.get("section", "").lower()
+                
+                # Debug print metadata as requested
+                print(f"DEBUG Chunk Metadata: {meta}")
+                
+                if (
+                    "interview" in section
+                    or "experience" in text_clean
+                    or "round" in text_clean
+                    or "technical round" in text_clean
+                    or "hr round" in text_clean
+                    or "oa" in text_clean
+                    or "online assessment" in text_clean
+                ):
+                    results.append(r)
+            results = results[:5]  # Limit to top 5 matches
+        else:
+            results = self.db_manager.query(
+                query_text=query,
+                n_results=5,
+                company_filter=company_filter
+            )
 
         if not results:
             return (
