@@ -9,9 +9,21 @@ class TestIngestion(unittest.TestCase):
     """
 
     def setUp(self):
-        # Instantiate with a dummy path (no file is read during functional mock checks)
+        import os
+        # Create a dummy file to satisfy the TableExtractor constructor check
+        if not os.path.exists("dummy.pdf"):
+            with open("dummy.pdf", "wb") as f:
+                f.write(b"%PDF-1.4\n%EOF")
         self.table_extractor = TableExtractor("dummy.pdf")
         self.deduplicator = Deduplicator(similarity_threshold=0.85)
+
+    def tearDown(self):
+        import os
+        if os.path.exists("dummy.pdf"):
+            try:
+                os.remove("dummy.pdf")
+            except Exception:
+                pass
 
     def test_map_row_to_dict_valid(self):
         """Verifies that eligibility row mapper converts string cells into properly typed fields."""
@@ -31,7 +43,7 @@ class TestIngestion(unittest.TestCase):
         """Verifies that invalid rows (like header rows) return None instead of crashing."""
         header_row = ["Company", "Min CGPA", "Max Backlogs", "Package (LPA)"]
         result = self.table_extractor._map_row_to_dict(header_row)
-        self.assertNil = self.assertIsNone(result)
+        self.assertIsNone(result)
 
     def test_deduplicator_similarity(self):
         """Verifies that similar text blocks get mapped to high similarity scores."""
