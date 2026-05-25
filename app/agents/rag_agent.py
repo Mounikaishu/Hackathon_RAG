@@ -1,0 +1,96 @@
+from groq import Groq
+from app.config import settings
+from app.embeddings.vector_store import VectorStoreManager
+
+class RagAgent:
+    """
+    Standard Semantic RAG Agent.
+    Retrieves relevant text chunks from ChromaDB, filters by metadata (such as targeted companies),
+    and synthesizes responses grounded securely on corpus context.
+    """
+
+    def __init__(self):
+        self.api_key = settings.GROQ_API_KEY
+        self.client = None
+        if self.api_key:
+            self.client = Groq(api_key=self.api_key)
+        self.db_manager = VectorStoreManager()
+
+    def process_query(self, query: str, company_filter: str = None) -> str:
+        """
+        Retrieves matching semantic context and answers the user's question.
+        Applies company filters if specified to reduce indexing cross-talk.
+        """
+        # 1. Retrieve top 5 semantic context chunks from database
+        results = self.db_manager.query(
+            query_text=query,
+            n_results=5,
+            company_filter=company_filter
+        )
+
+        if not results:
+            return (
+                "🔍 Semantic Search: No matching interview or placement experiences were found in the database. "
+                "Please verify that indexing has run successfully."
+            )
+
+        # 2. Extract context passages and track citations
+        context_blocks = []
+        citations = []
+        
+        for idx, r in enumerate(results):
+            text = r["text"]
+            meta = r["metadata"]
+            sec = meta.get("section", "general")
+            comp = meta.get("company", "Unknown")
+            
+            # Format text block
+            context_blocks.append(f"[Source {idx+1} | Company: {comp} | Section: {sec}]\n{text}")
+            
+            # Add to citations tracker
+            citations.append(f"- **Source {idx+1}**: {comp} placement text (Section: `{sec}`, similarity: {round(r['similarity'] * 100, 1)}%)")
+
+        context_string = "\n\n".join(context_blocks)
+
+        if not self.client:
+            # Local fallback: output the retrieved chunks directly
+            fallback_res = [
+                "⚠️ Groq API Error: GROQ_API_KEY is missing. Showing raw retrieved database matches instead:\n",
+                context_string
+            ]
+            return "\n\n".join(fallback_res)
+
+        # 3. Formulate prompt for Llama 3.3 text model
+        system_prompt = (
+            "You are a professional SVECW Career Placement Assistant.\n"
+            "Your task is to answer the user's question using ONLY the provided placement database context.\n"
+            "CRITICAL RULES:\n"
+            "1. Base your answer strictly on the supplied Context blocks. Do not assume or extrapolate beyond this data.\n"
+            "2. If the context does not contain the answer, state that the information is not present in the document.\n"
+            "3. Reference your sources inline using brackets (e.g. [Source 1], [Source 2]).\n"
+            "4. Maintain a highly professional, supportive, and formal tone."
+        )
+
+        user_content = (
+            f"Context Blocks:\n{context_string}\n\n"
+            f"User Question: {query}"
+        )
+
+        try:
+            chat_completion = self.client.chat.completions.create(
+                model=settings.GROQ_TEXT_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                temperature=0.3
+            )
+            
+            answer = chat_completion.choices[0].message.content.strip()
+            
+            # Append trace-back citations cleanly at the bottom
+            citation_footer = "\n\n---\n### 📄 Database Source Citations:\n" + "\n".join(citations)
+            return answer + citation_footer
+
+        except Exception as e:
+            return f"❌ RAG Agent Completion Error: {str(e)}\n\nRaw Context Match:\n{context_string}"
