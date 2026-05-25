@@ -3,6 +3,8 @@ import sys
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.api.routes import router, check_status
 from app.embeddings.indexing_pipeline import IndexingPipeline
@@ -22,6 +24,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount processed directory to serve static assets (such as charts PNGs)
+import os
+processed_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "processed")
+os.makedirs(processed_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=processed_dir), name="static")
+
+# Serve Frontend HTML Dashboard
+@app.get("/", response_class=HTMLResponse)
+async def get_index():
+    index_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app", "api", "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h2>SVECW Placement RAG Server is running.</h2><p>Frontend file index.html not found.</p>")
 
 # Include API Router
 app.include_router(router, prefix="/api")
