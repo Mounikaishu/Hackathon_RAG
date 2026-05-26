@@ -291,7 +291,7 @@ class RouterAgent:
             }
         # High-priority E2 Backlog Direct Lookup override
         _e2_backlog_keywords = ["backlog", "backlogs", "active backlogs", "max backlogs"]
-        _e2_lookup_keywords = ["how many", "what is", "allow", "limit"]
+        _e2_lookup_keywords = ["how many", "what is", "limit"]
         _e2_company_keywords = [
             "amazon", "google", "microsoft", "tcs", "infosys",
             "oracle", "wipro", "ibm", "deloitte", "flipkart", "hcl",
