@@ -122,6 +122,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isIndexing, setIsIndexing] = useState(false);
+  const [forceWebSearch, setForceWebSearch] = useState(false);
 
   // Database Stats
   const [stats, setStats] = useState({
@@ -263,7 +264,10 @@ function App() {
       const response = await fetch('/api/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: activeQuery })
+        body: JSON.stringify({ 
+          query: activeQuery,
+          force_web_search: forceWebSearch 
+        })
       });
 
       if (!response.ok) {
@@ -505,12 +509,21 @@ function App() {
 
           {/* Chat Input */}
           <div className="chat-input-bar">
+            <button 
+              className={`web-search-toggle ${forceWebSearch ? 'active' : ''}`}
+              onClick={() => setForceWebSearch(!forceWebSearch)}
+              disabled={isLoading || !isConnected}
+              title="Force Web Search"
+            >
+              <span>🌐</span>
+              <span className="toggle-label">{forceWebSearch ? 'Web Search Active' : 'Search Web'}</span>
+            </button>
             <input 
               type="text" 
               className="chat-input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ask a placement intelligence question..." 
+              placeholder={forceWebSearch ? "Search the web for real-time answers..." : "Ask a placement intelligence question..."}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !isLoading) {
                   handleSubmitQuery();

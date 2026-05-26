@@ -14,9 +14,12 @@ from app.agents.multi_hop_agent import MultiHopAgent
 
 router = APIRouter()
 
+from typing import Optional
+
 # Schema models
 class QueryRequest(BaseModel):
     query: str
+    force_web_search: Optional[bool] = False
 
 class QueryResponse(BaseModel):
     query: str
@@ -41,6 +44,80 @@ def run_indexing_background(pdf_path: str):
     except Exception as e:
         print(f"❌ Background Indexing Error: {e}")
 
+def clean_and_summarize_global(client, query: str, raw_response: str) -> str:
+    """Helper to summarize web search responses to 1-2 clean sentences."""
+    if not client:
+        return raw_response.replace("🌐 **[Real-time Web Search Fallback Agent | Querying Live Databases]**\n\n", "")
+    
+    prompt = (
+        "You are an assistant. Clean up and format the following web search response to be extremely short, direct, and concise (1-2 sentences max).\n"
+        "No references, no citations, no introductory filler. Output ONLY the clean answer text.\n\n"
+        f"Query: {query}\n"
+        f"Raw Response: {raw_response}"
+    )
+    try:
+        completion = client.chat.completions.create(
+            model=settings.GROQ_TEXT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1
+        )
+        return completion.choices[0].message.content.strip()
+    except Exception:
+        return raw_response.replace("🌐 **[Real-time Web Search Fallback Agent | Querying Live Databases]**\n\n", "")
+
+
+def clean_and_format_hybrid(client, query: str, matched_phrase: str, local_response: str, web_response: str) -> str:
+    """Helper to format local + global responses into the exact required Hybrid format."""
+    web_response_clean = web_response.replace("🌐 **[Real-time Web Search Fallback Agent | Querying Live Databases]**\n\n", "")
+    
+    if not client:
+        return (
+            "⚠️ Scope Boundary Notice\n\n"
+            f"The phrase \"{matched_phrase}\" is outside the placement dataset scope.\n\n"
+            f"📋 Dataset Answer:\n{local_response}\n\n"
+            f"🌐 Global Context:\n{web_response_clean}\n\n"
+            "This external information is separate from the placement dataset."
+        )
+    
+    prompt = f"""
+You are a senior software engineer formatting a RAG response for a hackathon demo.
+Format the final answer using the EXACT structure below. Keep it short, clean, and concise. Do not use long paragraphs or citations.
+
+REQUIRED STRUCTURE:
+⚠️ Scope Boundary Notice
+
+The phrase "{matched_phrase}" is outside the placement dataset scope.
+
+📋 Dataset Answer:
+[Provide an extremely short 1-line summary of the local response, e.g. "Infosys → 42.9 LPA"]
+
+🌐 Global Context:
+[Provide a short 1-line real-world context summarizing the web response, e.g. "Nvidia is considered among the highest-paying companies globally."]
+
+This external information is separate from the placement dataset.
+
+INPUTS:
+Query: {query}
+Local Response: {local_response}
+Web Response: {web_response_clean}
+"""
+    try:
+        completion = client.chat.completions.create(
+            model=settings.GROQ_TEXT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1
+        )
+        return completion.choices[0].message.content.strip()
+    except Exception:
+        return (
+            "⚠️ Scope Boundary Notice\n\n"
+            f"The phrase \"{matched_phrase}\" is outside the placement dataset scope.\n\n"
+            f"📋 Dataset Answer:\n{local_response}\n\n"
+            f"🌐 Global Context:\n{web_response_clean}\n\n"
+            "This external information is separate from the placement dataset."
+        )
+
+
 @router.post("/query", response_model=QueryResponse)
 async def query_system(request: QueryRequest):
     """
@@ -51,11 +128,35 @@ async def query_system(request: QueryRequest):
     if not query:
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
+    # A. Check Scope Categorization
+    query_lower = query.lower()
+    
+    # Define external keywords (longest to shortest for matching priority)
+    external_keywords = ["in the world", "in india", "across india", "outside dataset", "world", "globally", "india", "worldwide", "global", "external"]
+    matched_external = None
+    for kw in external_keywords:
+        if kw in query_lower:
+            matched_external = kw
+            break
+            
+    # Define local keywords
+    local_keywords = ["this dataset", "dataset", "placement dataset", "local dataset", "our dataset", "in this dataset"]
+    has_local_kw = any(lk in query_lower for lk in local_keywords)
+    
+    # Categorize scope
+    is_hybrid = matched_external is not None and has_local_kw
+    is_global_only = matched_external is not None and not has_local_kw
+
     # 1. Route the query using our central router agent
-    route_details = router_agent.route_query(query)
-    target_agent = route_details["agent"]
-    reason = route_details["reason"]
-    company = route_details["entities"].get("company")
+    if request.force_web_search or is_global_only:
+        target_agent = "web_search_agent"
+        reason = "User explicitly forced web search mode." if request.force_web_search else f"Query is global-only scope (matched external phrase '{matched_external}')."
+        company = None
+    else:
+        route_details = router_agent.route_query(query)
+        target_agent = route_details["agent"]
+        reason = route_details["reason"]
+        company = route_details["entities"].get("company")
 
     # 2. Invoke the target specialized agent
     response_text = ""
@@ -77,31 +178,31 @@ async def query_system(request: QueryRequest):
         response_text = f"❌ Agent Routing Execution Error: {str(e)}"
         target_agent = "error_agent"
 
-    # 3. Scope Boundary Handling & Web Agent Integration
-    boundary_words = ["world", "globally", "india", "all companies", "outside dataset", "every company", "across india", "worldwide", "external", "overall"]
-    query_lower = query.lower()
-    
-    if target_agent != "web_search_agent" and any(w in query_lower for w in boundary_words):
+    # 3. Post-Process based on Scope Boundary Handling
+    if is_hybrid:
         try:
-            # Trigger the web search agent to get global real-time context
+            # Query web agent for global perspective
             web_response = web_search_agent.process_query(query)
-            # Remove the default header from the web response for a cleaner output
-            web_response_clean = web_response.replace("🌐 **[Real-time Web Search Fallback Agent | Querying Live Databases]**\n\n", "")
-            
-            # Formulate the scope boundary response
-            matched_word = [w for w in boundary_words if w in query_lower][0]
-            response_text = (
-                f"⚠️ **Scope Boundary Notice:** This query references terms outside the placement dataset (specifically '{matched_word}'). "
-                f"The system has answered using the local placement dataset and has queried the web to provide global context.\n\n"
-                f"### 📋 Local Dataset Findings:\n{response_text}\n\n"
-                f"### 🌐 Global Web Insights:\n{web_response_clean}"
+            response_text = clean_and_format_hybrid(
+                client=router_agent.client,
+                query=query,
+                matched_phrase=matched_external,
+                local_response=response_text,
+                web_response=web_response
             )
-        except Exception as e:
-            # Fallback to standard boundary warning if web search fails
+        except Exception:
             response_text = (
-                f"⚠️ **Scope Boundary Notice:** This query references terms outside the placement dataset. "
-                f"The response below is restricted to the SVECW placement dataset.\n\n{response_text}"
+                "⚠️ Scope Boundary Notice\n\n"
+                f"The phrase \"{matched_external}\" is outside the placement dataset scope.\n\n"
+                f"📋 Dataset Answer:\n{response_text}\n\n"
+                "This external information is separate from the placement dataset."
             )
+    elif is_global_only and target_agent == "web_search_agent":
+        response_text = clean_and_summarize_global(
+            client=router_agent.client,
+            query=query,
+            raw_response=response_text
+        )
 
     return QueryResponse(
         query=query,

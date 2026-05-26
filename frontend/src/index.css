@@ -589,6 +589,45 @@ body {
   transform: translateY(0);
 }
 
+.web-search-toggle {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  border-radius: 0.85rem;
+  height: 48px;
+  padding: 0 1rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.web-search-toggle:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  color: #fff;
+}
+
+.web-search-toggle.active {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.25) 0%, rgba(59, 130, 246, 0.25) 100%);
+  border-color: var(--accent-cyan);
+  color: #fff;
+  box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+}
+
+@media (max-width: 600px) {
+  .web-search-toggle .toggle-label {
+    display: none;
+  }
+  .web-search-toggle {
+    padding: 0 0.75rem;
+  }
+}
+
 /* Right Panel (Vision Gallery) */
 .gallery-panel {
   background: rgba(13, 20, 38, 0.25);
