@@ -190,6 +190,31 @@ class RouterAgent:
                 "cleaned_query": query
             }
 
+        # M2 Threshold Filter override BEFORE recommendation routing
+        _m2_req_keywords = [
+            "require", "requires", "minimum cgpa", "cgpa above", 
+            "cgpa higher than", "greater than", "more than", "above"
+        ]
+        _m2_comp_keywords = ["which companies", "companies"]
+        _m2_attr_keywords = ["cgpa", "backlogs", "package", "bond"]
+        _m2_student_keywords = [
+            "i have", "my cgpa", "student", "can i apply", 
+            "eligible for me", "wants"
+        ]
+
+        if (
+            any(kw in query_lower for kw in _m2_req_keywords)
+            and any(kw in query_lower for kw in _m2_comp_keywords)
+            and any(kw in query_lower for kw in _m2_attr_keywords)
+            and not any(kw in query_lower for kw in _m2_student_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Threshold filter query detected.",
+                "cleaned_query": query
+            }
+
         # High-priority 3-condition optimization override BEFORE semantic routing
         student_keywords = ["student", "cgpa", "backlog", "backlogs"]
         preference_keywords = ["maximum pay", "highest pay", "highest package", "best package", "maximum package", "no bond", "without bond"]
@@ -225,6 +250,44 @@ class RouterAgent:
                 "agent": "dataframe_agent",
                 "entities": self._extract_entities_local(query),
                 "reason": "Tech-focus filtering query detected.",
+                "cleaned_query": query
+            }
+        # High-priority M3 Category + Sort override
+        category_keywords = [
+            "it service", "service firms", "product companies",
+            "consulting firms", "among", "category"
+        ]
+        sort_keywords = [
+            "highest", "top", "maximum", "best", "highest package"
+        ]
+        package_keywords = [
+            "package", "salary", "lpa", "compensation"
+        ]
+        if (
+            any(word in query_lower for word in category_keywords)
+            and any(word in query_lower for word in sort_keywords)
+            and any(word in query_lower for word in package_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Category filter + sorting query detected.",
+                "cleaned_query": query
+            }
+        # High-priority M1 Multi-row threshold filter override
+        _m1_thresh_keywords = ["at least", "more than", "greater than", "minimum"]
+        _m1_back_keywords = ["backlog", "backlogs"]
+        _m1_list_keywords = ["list", "all companies", "which companies"]
+
+        if (
+            any(kw in query_lower for kw in _m1_thresh_keywords)
+            and any(kw in query_lower for kw in _m1_back_keywords)
+            and any(kw in query_lower for kw in _m1_list_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Multi-row threshold filter query detected.",
                 "cleaned_query": query
             }
 

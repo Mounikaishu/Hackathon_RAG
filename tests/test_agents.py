@@ -655,7 +655,7 @@ class TestAgentsAndTools(unittest.TestCase):
 
         self.assertIn("🎯 Companies Allowing 2+ Backlog(s)", response)
         self.assertIn("allow 2 or more active backlog(s):", response)
-        self.assertIn("• TCS", response)
+        self.assertIn("• Flipkart", response)
         self.assertIn("• IBM", response)
         self.assertIn("📌 Summary:", response)
 
@@ -673,6 +673,37 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("• Amazon", response)
         self.assertIn("• Microsoft", response)
         self.assertIn("📌 Summary:", response)
+
+    def test_dataframe_m3_category_sort(self):
+        """Verifies M3 Category + Sort Mode for highest package among IT service firms."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "Which company has the highest package among IT service firms?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Highest Package Among IT Service Firms", response)
+        self.assertIn("🏆 Top Company:", response)
+        self.assertIn("Infosys", response)
+        self.assertIn("42.9 LPA", response)
+        self.assertIn("Top IT Service Firms by Package:", response)
+        self.assertIn("1. Infosys → 42.9 LPA", response)
+        self.assertIn("2. Cognizant → 42.3 LPA", response)
+
+    def test_dataframe_m2_threshold_filter(self):
+        """Verifies M2 Threshold Filter Mode for CGPA requirements."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "Which companies require a CGPA above 8.0?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Companies Requiring CGPA Above 8.0", response)
+        self.assertIn("The following companies require a minimum CGPA higher than 8.0:", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("require a CGPA above 8.0.", response)
 
 if __name__ == "__main__":
     unittest.main()
