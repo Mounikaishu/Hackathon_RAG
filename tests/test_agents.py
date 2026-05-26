@@ -705,5 +705,123 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("📌 Summary:", response)
         self.assertIn("require a CGPA above 8.0.", response)
 
+    def test_dataframe_e8_easy_text_retrieval(self):
+        """Verifies E8 Easy Text Retrieval Mode for tech focus at Amazon."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "Which programming language is tested at Amazon?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Amazon Technical Focus", response)
+        self.assertIn("The programming language primarily tested at Amazon is:", response)
+        self.assertIn("• C++", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("technical interview focus in the placement dataset is C++.", response)
+        # Strict: no raw dataframe output, no formal letter
+        self.assertNotIn("Dear Candidate", response)
+        self.assertNotIn("tech_focus", response)
+        self.assertNotIn("Placement Officer", response)
+
+    def test_rag_agent_e7_interview_rounds(self):
+        """Verifies E7 Interview Rounds Retrieval Mode for TCS."""
+        from app.agents.rag_agent import RagAgent
+        agent = RagAgent()
+        agent.client = None  # bypass LLM
+
+        query = "What rounds does TCS conduct?"
+        response = agent.process_query(query)
+
+        # Should return rounds, not preparation guide
+        self.assertIn("TCS Interview Rounds", response)
+        self.assertIn("TCS conducts the following hiring rounds:", response)
+        self.assertIn("Aptitude Round", response)
+        self.assertIn("HR Interview", response)
+        self.assertIn("Summary:", response)
+
+        # Must NOT fire prep mode
+        self.assertNotIn("Key Topics to Prepare", response)
+        self.assertNotIn("Preparation Focus", response)
+        self.assertNotIn("Dear Candidate", response)
+
+    def test_router_override_e7_rounds(self):
+        """Verifies that E7 rounds queries route to rag_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        result = router.route_query("What rounds does TCS conduct?")
+        self.assertEqual(result["agent"], "rag_agent")
+        self.assertIn("rounds", result["reason"].lower())
+
+    def test_dataframe_e6_boolean_entity_yes(self):
+        """Verifies E6 Boolean Entity Query Mode for positive case (Microsoft allows backlogs)."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "Does Microsoft allow backlogs?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Microsoft Backlog Policy", response)
+        self.assertIn("✅ Yes, Microsoft allows backlogs.", response)
+        self.assertIn("Backlogs Allowed:", response)
+        self.assertIn("1 active backlog", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("Microsoft permits up to 1 active backlog in the placement dataset.", response)
+
+    def test_dataframe_e6_boolean_entity_no(self):
+        """Verifies E6 Boolean Entity Query Mode for negative case (Google does not allow backlogs)."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "Does Google allow backlogs?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Google Backlog Policy", response)
+        self.assertIn("❌ No, Google does not allow backlogs.", response)
+        self.assertIn("Backlogs Allowed:", response)
+        self.assertIn("0 active backlogs", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("Google requires zero active backlogs in the placement dataset.", response)
+
+    def test_router_override_e6_boolean_entity(self):
+        """Verifies that E6 boolean entity query routes to dataframe_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        result = router.route_query("Does Microsoft allow backlogs?")
+        self.assertEqual(result["agent"], "dataframe_agent")
+        self.assertIn("boolean entity query", result["reason"].lower())
+
+    def test_dataframe_e5_direct_table_lookup(self):
+        """Verifies E5 Direct Table Lookup Mode for Google package."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "What is the package offered by Google?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Google Package Details", response)
+        self.assertIn("Google offers a package of:", response)
+        self.assertIn("💰 42 LPA", response)
+        self.assertIn("📌 Summary:", response)
+        # Avoid windows apostrophe issue by matching clean parts
+        self.assertIn("placement dataset records Google", response)
+        self.assertIn("offered package as 42 LPA.", response)
+
+        # Strict exclusions
+        self.assertNotIn("Dear Candidate", response)
+        self.assertNotIn("package_lpa", response)
+        self.assertNotIn("Placement Officer", response)
+
+    def test_router_override_e5_direct_table_lookup(self):
+        """Verifies that E5 direct table lookup query routes to dataframe_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        result = router.route_query("What is the package offered by Google?")
+        self.assertEqual(result["agent"], "dataframe_agent")
+        self.assertIn("direct table lookup query", result["reason"].lower())
+
 if __name__ == "__main__":
     unittest.main()

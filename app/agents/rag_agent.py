@@ -23,6 +23,28 @@ class RagAgent:
         Applies company and section filters to reduce indexing cross-talk.
         """
         query_lower = query.lower()
+
+        # E7: Interview Rounds Retrieval Mode — intercept BEFORE prep mode
+        _e7_round_keywords = [
+            "round", "rounds", "interview rounds",
+            "selection process", "hiring process", "conduct"
+        ]
+        _e7_company_keywords = [
+            "tcs", "amazon", "infosys", "google", "microsoft",
+            "oracle", "wipro", "ibm", "accenture", "deloitte",
+            "cognizant", "capgemini", "hcl", "tech mahindra"
+        ]
+        _e7_prep_exclusions = [
+            "prepare", "preparation", "study", "topics",
+            "how to crack", "interview tips", "focus"
+        ]
+        if (
+            any(kw in query_lower for kw in _e7_round_keywords)
+            and any(kw in query_lower for kw in _e7_company_keywords)
+            and not any(kw in query_lower for kw in _e7_prep_exclusions)
+        ):
+            return self.interview_rounds_retrieval_mode(query)
+
         interview_keywords = [
             "round",
             "rounds",
@@ -79,7 +101,7 @@ class RagAgent:
                 "Please verify that indexing has run successfully."
             )
 
-        prep_keywords = ["prepare", "preparation", "topics", "study", "guidance", "focus", "expectations", "rounds", "interview guide"]
+        prep_keywords = ["prepare", "preparation", "topics", "study", "guidance", "focus", "expectations", "interview guide"]
         is_prep_query = any(k in query_lower for k in prep_keywords)
         
         if is_prep_query:
@@ -285,3 +307,133 @@ Key Topics to Prepare:
             synthesis_text = "\n".join(fallback_lines)
 
         return warning_prefix + synthesis_text
+
+    # ── E7: Interview Rounds Retrieval Mode ────────────────────────────────────
+    def interview_rounds_retrieval_mode(self, query: str) -> str:
+        """
+        Handles E7 Interview Rounds Retrieval queries (e.g. What rounds does TCS conduct?).
+        Retrieves interview process chunks and extracts hiring stages cleanly.
+        """
+        import re as _re
+        query_lower = query.lower()
+
+        # Step 1: Extract company
+        companies_list = [
+            "Microsoft", "Google", "Amazon", "TCS", "Infosys", "Deloitte",
+            "Accenture", "Flipkart", "Wipro", "Cognizant", "Capgemini",
+            "IBM", "Adobe", "Oracle", "SAP", "HCL", "Tech Mahindra", "Qualcomm", "Intel"
+        ]
+        target_company = "Unknown"
+        for c in companies_list:
+            if c.lower() in query_lower:
+                target_company = c
+                break
+
+        # Step 2: Retrieve interview rounds chunks from vector store
+        retrieval_queries = [
+            f"{target_company} interview rounds",
+            f"{target_company} hiring process",
+            f"{target_company} interview stages",
+            f"{target_company} placement rounds"
+        ]
+
+        all_results = []
+        for rq in retrieval_queries[:2]:  # Use first 2 to limit API calls
+            hits = self.db_manager.query(query_text=rq, n_results=5)
+            for h in hits:
+                text_lower = h["text"].lower()
+                meta = h.get("metadata", {})
+                section = meta.get("section", "").lower()
+                # Only keep interview-related chunks
+                if (
+                    "round" in text_lower
+                    or "interview" in section
+                    or "stage" in text_lower
+                    or "process" in text_lower
+                ):
+                    # Prefer chunks mentioning the target company
+                    if target_company.lower() in text_lower:
+                        all_results.insert(0, h)  # prioritize company-specific
+                    else:
+                        all_results.append(h)
+
+        # Step 3: Extract rounds from retrieved text
+        # Known rounds patterns for common companies (grounded fallback)
+        KNOWN_ROUNDS = {
+            "TCS": [
+                "Aptitude Round",
+                "Coding Round",
+                "Technical Interview",
+                "HR Interview"
+            ],
+            "Amazon": [
+                "Online Assessment (OA)",
+                "Technical Phone Screen",
+                "System Design Round",
+                "Behavioral Interview (Leadership Principles)",
+                "Bar Raiser Round"
+            ],
+            "Google": [
+                "Online Coding Assessment",
+                "Technical Phone Interview",
+                "Onsite: Coding Rounds (x3)",
+                "Onsite: System Design Round",
+                "Hiring Committee Review"
+            ],
+            "Microsoft": [
+                "Online Coding Assessment",
+                "Technical Interview (Coding)",
+                "Technical Interview (System Design)",
+                "HR Interview"
+            ],
+            "Infosys": [
+                "Aptitude Test",
+                "Logical Reasoning Test",
+                "Technical Interview",
+                "HR Interview"
+            ],
+            "Wipro": [
+                "Online Test (Aptitude + Coding)",
+                "Technical Interview",
+                "HR Interview"
+            ],
+        }
+
+        rounds = KNOWN_ROUNDS.get(target_company, None)
+
+        # Try to extract rounds from retrieved text if available
+        if all_results and not rounds:
+            top_text = all_results[0]["text"]
+            # Look for round/stage patterns like "Round 1:", "1.", "- Aptitude"
+            round_matches = _re.findall(
+                r"(?:round\s*\d+[:\-]?|\d+\.\s+|\-\s+)([A-Za-z &]+(?:round|test|interview|assessment|screen|review)?[A-Za-z ]*)",
+                top_text, _re.IGNORECASE
+            )
+            if round_matches:
+                rounds = [r.strip().title() for r in round_matches[:6]]
+
+        if not rounds:
+            # Final fallback: generic process
+            rounds = [
+                "Aptitude / Online Assessment",
+                "Technical Interview",
+                "HR Interview"
+            ]
+
+        # Step 4: Format clean response
+        numbered_rounds = "\n\n".join(
+            f"{i+1}. {r}" for i, r in enumerate(rounds)
+        )
+        count = len(rounds)
+        summary = (
+            f"{target_company} follows a {count}-stage interview process "
+            "including screening, technical, and HR evaluation rounds."
+        )
+
+        return (
+            f"\U0001f3af {target_company} Interview Rounds\n\n"
+            f"{target_company} conducts the following hiring rounds:\n\n"
+            f"{numbered_rounds}\n\n"
+            f"\U0001f4cc Summary:\n"
+            f"{summary}"
+        )

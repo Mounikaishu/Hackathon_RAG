@@ -190,6 +190,33 @@ class RouterAgent:
                 "cleaned_query": query
             }
 
+        # E7: Interview Rounds Retrieval override
+        _e7_round_keywords = [
+            "round", "rounds", "interview rounds",
+            "selection process", "hiring process", "conduct"
+        ]
+        _e7_company_keywords = [
+            "tcs", "amazon", "infosys", "google", "microsoft",
+            "oracle", "wipro", "ibm", "accenture", "deloitte",
+            "cognizant", "capgemini", "hcl", "tech mahindra"
+        ]
+        _e7_prep_exclusions = [
+            "prepare", "preparation", "study", "topics",
+            "how to crack", "interview tips", "focus"
+        ]
+
+        if (
+            any(kw in query_lower for kw in _e7_round_keywords)
+            and any(kw in query_lower for kw in _e7_company_keywords)
+            and not any(kw in query_lower for kw in _e7_prep_exclusions)
+        ):
+            return {
+                "agent": "rag_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Interview rounds retrieval query detected.",
+                "cleaned_query": query
+            }
+
         # M2 Threshold Filter override BEFORE recommendation routing
         _m2_req_keywords = [
             "require", "requires", "minimum cgpa", "cgpa above", 
@@ -252,6 +279,67 @@ class RouterAgent:
                 "reason": "Tech-focus filtering query detected.",
                 "cleaned_query": query
             }
+        # High-priority E5 Direct Table Lookup override
+        _e5_package_keywords = ["package", "salary", "lpa", "compensation", "offered"]
+        _e5_company_keywords = [
+            "google", "amazon", "microsoft", "tcs", "infosys",
+            "wipro", "ibm", "oracle"
+        ]
+
+        if (
+            any(kw in query_lower for kw in _e5_package_keywords)
+            and any(kw in query_lower for kw in _e5_company_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Direct table lookup query detected.",
+                "cleaned_query": query
+            }
+
+        # High-priority E6 Boolean Entity Query override
+        _e6_bool_keywords = ["does", "allow", "allowed", "permit", "permits"]
+        _e6_attr_keywords = ["backlog", "backlogs", "bond", "bonds"]
+        _e6_company_keywords = [
+            "microsoft", "amazon", "google", "tcs", "infosys",
+            "wipro", "ibm", "oracle"
+        ]
+        _e6_list_keywords = ["list", "which companies", "all companies"]
+
+        if (
+            any(kw in query_lower for kw in _e6_bool_keywords)
+            and any(kw in query_lower for kw in _e6_attr_keywords)
+            and any(kw in query_lower for kw in _e6_company_keywords)
+            and not any(kw in query_lower for kw in _e6_list_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Boolean entity query detected.",
+                "cleaned_query": query
+            }
+
+        # High-priority E8 Easy Text Retrieval override
+        _e8_tech_keywords = [
+            "programming language", "language", "tech focus",
+            "technical focus", "tested at", "focus at"
+        ]
+        _e8_company_keywords = [
+            "amazon", "google", "microsoft", "oracle",
+            "tcs", "infosys", "wipro", "ibm"
+        ]
+
+        if (
+            any(kw in query_lower for kw in _e8_tech_keywords)
+            and any(kw in query_lower for kw in _e8_company_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Technology focus retrieval query detected.",
+                "cleaned_query": query
+            }
+
         # High-priority M3 Category + Sort override
         category_keywords = [
             "it service", "service firms", "product companies",
