@@ -188,6 +188,27 @@ class RouterAgent:
                 "cleaned_query": query
             }
 
+        # High-priority tech-focus override BEFORE semantic routing
+        tech_keywords = [
+            "technical focus", "tech focus", "technology focus", "use python",
+            "python-focused", "java-focused", "c++ focused", "cloud-focused",
+            "which companies use", "companies using", "focus on"
+        ]
+        languages = ["python", "java", "c++", "cloud", "system design"]
+        hiring_keywords = ["intern", "interns", "analyst", "sde", "officer", "hiring", "distribution", "chart"]
+
+        if (
+            any(keyword in query_lower for keyword in tech_keywords)
+            and any(lang in query_lower for lang in languages)
+            and not any(hiring in query_lower for hiring in hiring_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Tech-focus filtering query detected.",
+                "cleaned_query": query
+            }
+
         # Compute query embedding
         q_emb = self.model.encode(query, convert_to_numpy=True)
         

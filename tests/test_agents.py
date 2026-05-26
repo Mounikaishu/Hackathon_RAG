@@ -419,5 +419,48 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("💰 Package Offered:", response)
         self.assertIn("28.6 LPA", response)
 
+    def test_router_override_tech_focus(self):
+        """Verifies that tech-focus queries route immediately to dataframe_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        
+        query = "Which companies use Python as the technical focus?"
+        route_result = router.route_query(query)
+        self.assertEqual(route_result["agent"], "dataframe_agent")
+        self.assertIn("Tech-focus filtering query detected.", route_result["reason"])
+
+    def test_dataframe_tech_focus_benchmark(self):
+        """Verifies Example: Tech Focus Filtering Mode for the benchmark query."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+        
+        query = "Which companies use Python as the technical focus?"
+        response = agent.process_query(query)
+        
+        self.assertIn("🎯 Python-Focused Companies", response)
+        self.assertIn("The following companies use Python as their technical focus:", response)
+        self.assertIn("• Google", response)
+        self.assertIn("• Oracle", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("2 companies in the placement dataset primarily focus on Python for technical interviews.", response)
+
+    def test_dataframe_tech_focus_general(self):
+        """Verifies dynamic tech focus filtering for a general query."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+        
+        query = "Which companies focus on Java?"
+        response = agent.process_query(query)
+        
+        self.assertIn("🎯 Java-Focused Companies", response)
+        self.assertIn("The following companies use Java as their technical focus:", response)
+        self.assertIn("• Infosys", response)
+        self.assertIn("• Cognizant", response)
+        self.assertIn("• Samsung R&D", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("3 companies in the placement dataset primarily focus on Java for technical interviews.", response)
+
 if __name__ == "__main__":
     unittest.main()
