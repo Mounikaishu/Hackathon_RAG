@@ -180,32 +180,66 @@ class TableExtractor:
         doc = fitz.open(self.pdf_path)
         extracted_rows = []
         
-        full_text = ""
+        # Only parse page containing Section 5 trends table
+        trends_text = ""
         for page in doc:
-            full_text += page.get_text("text") + "\n"
-            
-        lines = full_text.split("\n")
-        for line in lines:
-            line_cleaned = line.strip()
-            # Check if line starts with any company in our list
+            p_text = page.get_text("text")
+            if "Section 5:" in p_text and ("Placement Trend" in p_text or "Temporal Trends" in p_text):
+                trends_text += p_text + "\n"
+                
+        lines = [line.strip() for line in trends_text.split("\n") if line.strip()]
+        
+        # Parse vertical layout
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            matched_company = None
             for comp in self.companies_list:
-                if line_cleaned.startswith(comp):
-                    # Match: Company 2021 2022 2023 2024 Trend
-                    # e.g., Infosys 36.0 39.0 41.5 42.9 ↑ Strong growth
-                    match = re.match(
-                        r"^([A-Za-z0-9&\s\.\;\-\_]+?)\s+(\d+\.\d+|\d+)\s+(\d+\.\d+|\d+)\s+(\d+\.\d+|\d+)\s+(\d+\.\d+|\d+)\s+(.+)$",
-                        line_cleaned
-                    )
-                    if match:
-                        extracted_rows.append({
-                            "company": comp,
-                            "pkg_2021": float(match.group(2)),
-                            "pkg_2022": float(match.group(3)),
-                            "pkg_2023": float(match.group(4)),
-                            "pkg_2024": float(match.group(5)),
-                            "trend": match.group(6).strip()
-                        })
-                        break
+                if line.lower() == comp.lower():
+                    matched_company = comp
+                    break
+            
+            if matched_company and i + 5 < len(lines):
+                try:
+                    pkg_2021 = float(lines[i+1])
+                    pkg_2022 = float(lines[i+2])
+                    pkg_2023 = float(lines[i+3])
+                    pkg_2024 = float(lines[i+4])
+                    trend_text = lines[i+5]
+                    
+                    extracted_rows.append({
+                        "company": matched_company,
+                        "pkg_2021": pkg_2021,
+                        "pkg_2022": pkg_2022,
+                        "pkg_2023": pkg_2023,
+                        "pkg_2024": pkg_2024,
+                        "trend": trend_text
+                    })
+                    i += 6
+                    continue
+                except ValueError:
+                    pass
+            i += 1
+            
+        # Fallback to regex horizontal scanner if no vertical match
+        if not extracted_rows:
+            for line in lines:
+                for comp in self.companies_list:
+                    if line.startswith(comp):
+                        match = re.match(
+                            r"^([A-Za-z0-9&\s\.\;\-\_]+?)\s+(\d+\.\d+|\d+)\s+(\d+\.\d+|\d+)\s+(\d+\.\d+|\d+)\s+(\d+\.\d+|\d+)\s+(.+)$",
+                            line
+                        )
+                        if match:
+                            extracted_rows.append({
+                                "company": comp,
+                                "pkg_2021": float(match.group(2)),
+                                "pkg_2022": float(match.group(3)),
+                                "pkg_2023": float(match.group(4)),
+                                "pkg_2024": float(match.group(5)),
+                                "trend": match.group(6).strip()
+                            })
+                            break
         
         doc.close()
         
@@ -216,3 +250,4 @@ class TableExtractor:
             json.dump(extracted_rows, f, indent=2, ensure_ascii=False)
             
         return extracted_rows
+

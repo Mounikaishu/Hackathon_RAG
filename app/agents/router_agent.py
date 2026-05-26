@@ -85,10 +85,52 @@ class RouterAgent:
             "package": package_val
         }
 
+    def _resolve_edge_case(self, query: str, sim_dict: dict, entities: dict) -> str:
+        """
+        Intelligently resolves ambiguous queries based on semantic intent rules.
+        """
+        query_lower = query.lower()
+
+        # CASE A: Eligibility Recommendation -> multi_hop_agent
+        eligibility_phrases = [
+            "where can i apply", "am i eligible", "what companies", 
+            "eligible for", "can i apply", "apply with", "apply to", 
+            "eligible to", "eligible check"
+        ]
+        has_eligibility_phrase = any(phrase in query_lower for phrase in eligibility_phrases)
+        has_cgpa = (entities.get("cgpa") is not None) or ("cgpa" in query_lower)
+        
+        if has_eligibility_phrase or (has_cgpa and any(k in query_lower for k in ["apply", "eligible", "job", "company", "companies"])):
+            return "multi_hop_agent"
+
+        # CASE B: Comparison / Recommendation -> multi_hop_agent
+        companies_list = [
+            "amazon", "google", "tcs", "infosys", "deloitte", "microsoft", 
+            "intel", "qualcomm", "cognizant", "wipro", "oracle", "ibm", 
+            "capgemini", "adobe", "sap", "hcl", "tech mahindra", "samsung"
+        ]
+        mentioned_companies = [c for c in companies_list if c in query_lower]
+        
+        comparison_phrases = [
+            "vs", "versus", "join", "better", "compare", "career", 
+            "choice", "choose", "prefer", "difference", "recommend", "opinion"
+        ]
+        has_comparison = any(phrase in query_lower for phrase in comparison_phrases)
+        
+        if len(mentioned_companies) >= 2 or (len(mentioned_companies) >= 1 and has_comparison) or (has_comparison and "company" in query_lower):
+            return "multi_hop_agent"
+
+        # CASE C: Real-time External Queries -> web_search_agent
+        web_keywords = ["stock", "price", "ceo", "current", "founder", "market cap", "market capitalization", "news", "latest", "today", "who is", "weather", "ticker"]
+        if any(kw in query_lower for kw in web_keywords):
+            return "web_search_agent"
+
+        return None
+
     def route_query(self, query: str) -> dict:
         """
         Classifies the query and extracts entities.
-        Uses Semantic Cosine Similarity scoring first, falling back to rule-based classification if low confidence.
+        Uses hierarchical routing with High/Medium/Low confidence bands, margin analysis, and edge-case resolution.
         """
         query_lower = query.lower()
 
@@ -100,27 +142,64 @@ class RouterAgent:
         agents_norms = self.agent_embeddings / (np.linalg.norm(self.agent_embeddings, axis=1, keepdims=True) + 1e-9)
         similarities = np.dot(agents_norms, q_norm)
         
-        # Find highest similarity match
-        best_idx = np.argmax(similarities)
-        best_score = float(similarities[best_idx])
-        best_agent = self.agent_names[best_idx]
+        # Sort indices to find best and second best similarity scores
+        sorted_indices = np.argsort(similarities)[::-1]
+        best_idx = sorted_indices[0]
+        second_best_idx = sorted_indices[1]
         
-        # Format debug trace logs
+        best_agent = self.agent_names[best_idx]
+        best_score = float(similarities[best_idx])
+        second_best_score = float(similarities[second_best_idx])
+        margin = best_score - second_best_score
+        
+        # Build score dictionary
+        sim_dict = {self.agent_names[idx]: float(similarities[idx]) for idx in range(len(self.agent_names))}
         scores_str = ", ".join(f"{name}: {similarities[idx]:.3f}" for idx, name in enumerate(self.agent_names))
-        trace_reason = f"Semantic match ({best_agent}) with similarity {best_score:.3f}. Scores: [{scores_str}]."
+        
+        # Extract entities
+        entities = self._extract_entities_local(query)
 
-        # Threshold Decision
-        if best_score >= self.threshold:
-            entities = self._extract_entities_local(query)
+        # 1. Classify Ambiguity / Confidence state
+        is_ambiguous = margin < 0.10
+        is_high = best_score > 0.55
+        is_medium = 0.30 <= best_score <= 0.55
+        is_low = best_score < 0.30
+
+        # 2. Invoke Edge-Case Resolver if medium/low confidence or ambiguous
+        resolved_agent = None
+        if is_medium or is_low or is_ambiguous:
+            resolved_agent = self._resolve_edge_case(query, sim_dict, entities)
+
+        if resolved_agent:
+            trace_reason = f"Resolved via edge-case rules to {resolved_agent}. Score: {best_score:.3f}, margin: {margin:.3f}. Scores: [{scores_str}]."
+            return {
+                "agent": resolved_agent,
+                "entities": entities,
+                "reason": trace_reason,
+                "cleaned_query": query
+            }
+
+        # 3. Route according to Confidence Bands
+        if is_high and not is_ambiguous:
+            trace_reason = f"High-confidence semantic match ({best_agent}) with similarity {best_score:.3f} and margin {margin:.3f}. Scores: [{scores_str}]."
             return {
                 "agent": best_agent,
                 "entities": entities,
                 "reason": trace_reason,
                 "cleaned_query": query
             }
-            
-        # Fallback path if semantic classification is below threshold
-        fallback_warning = f"Low semantic confidence ({best_score:.3f}). Scores: [{scores_str}]."
+        elif is_medium and not is_ambiguous:
+            # Medium confidence with clear separation -> trust best semantic agent
+            trace_reason = f"Medium-confidence semantic match ({best_agent}) with similarity {best_score:.3f} and margin {margin:.3f}. Scores: [{scores_str}]."
+            return {
+                "agent": best_agent,
+                "entities": entities,
+                "reason": trace_reason,
+                "cleaned_query": query
+            }
+
+        # 4. Fallback to keyword rules (low confidence or unresolved ambiguity)
+        fallback_warning = f"Low confidence / unresolved ambiguity (Best score: {best_score:.3f}, Margin: {margin:.3f}). Scores: [{scores_str}]."
         return self._fallback_keyword_routing(query, warning=fallback_warning)
 
     def _fallback_keyword_routing(self, query: str, warning: str = None) -> dict:

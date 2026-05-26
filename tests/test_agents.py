@@ -39,6 +39,18 @@ class TestAgentsAndTools(unittest.TestCase):
         route = self.router._fallback_keyword_routing(query)
         self.assertEqual(route["agent"], "dataframe_agent")
 
+    def test_eligibility_recommendation_routing(self):
+        """Checks if eligibility queries with CGPA route to multi_hop_agent override."""
+        query = "I have CGPA 5.0. Where can I apply?"
+        route = self.router.route_query(query)
+        self.assertEqual(route["agent"], "multi_hop_agent")
+
+    def test_comparison_recommendation_routing(self):
+        """Checks if comparison queries route to multi_hop_agent resolver."""
+        query = "Should I join Google or Microsoft? Which is better for my career?"
+        route = self.router.route_query(query)
+        self.assertEqual(route["agent"], "multi_hop_agent")
+
     def test_calculator_valid(self):
         """Verifies correct execution of valid algebraic expressions."""
         expr = "(28.6 + 42.0) / 2"
@@ -75,5 +87,94 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("Google", response["result"])
         self.assertNotIn("TCS", response["result"])
 
+    def test_multi_hop_agent_career_comparison(self):
+        """Verifies Case 1: Standard Career Comparison response structure."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "Should I join TCS? Which is better for my career?"
+        response = agent.process_query(query)
+        
+        self.assertIn("Career Comparison: TCS vs Google", response)
+        self.assertIn("• Package:", response)
+        self.assertIn("• Tech Focus:", response)
+        self.assertIn("• Bond:", response)
+        self.assertIn("Recommendation", response)
+
+    def test_multi_hop_agent_eligibility_analysis_empty(self):
+        """Verifies Case 2: Placement Eligibility Analysis when no companies are eligible."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "I have CGPA 5.0. Where can I apply?"
+        response = agent.process_query(query)
+        
+        self.assertIn("Placement Eligibility Analysis", response)
+        self.assertIn("No eligible companies found", response)
+        self.assertIn("Closest opportunities", response)
+        self.assertIn("💡 Recommendation:", response)
+
+    def test_multi_hop_agent_eligibility_analysis_eligible(self):
+        """Verifies Case 2: Placement Eligibility Analysis when eligible companies are found."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "I have CGPA 8.5. Where can I apply?"
+        response = agent.process_query(query)
+        
+        self.assertIn("Placement Eligibility Analysis", response)
+        self.assertIn("eligible to apply for the following companies", response)
+
+    def test_multi_hop_agent_highest_paying(self):
+        """Verifies Case 3: Highest Paying Eligible Company selection and reasoning."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "A student with CGPA 7.6 and 1 backlog wants the highest-paying company"
+        response = agent.process_query(query)
+        
+        self.assertIn("Eligibility Recommendation", response)
+        self.assertIn("Best Eligible Company:", response)
+        self.assertIn("Package:", response)
+
+    def test_multi_hop_agent_hard_full_synthesis(self):
+        """Verifies Hard Full Synthesis mode execution and headings presence."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "H7 Compare Google and Amazon on all dimensions: eligibility, package, hiring, trend."
+        response = agent.process_query(query)
+        
+        self.assertIn("Full Company Comparison: Google vs Amazon", response)
+        self.assertIn("1️⃣ Eligibility", response)
+        self.assertIn("2️⃣ Package", response)
+        self.assertIn("3️⃣ Hiring Distribution", response)
+        self.assertIn("4️⃣ Placement Trend (2021–2024)", response)
+        self.assertIn("🏆 Overall Recommendation", response)
+ 
+    def test_multi_hop_agent_computed_ratio_aggregation(self):
+        """Verifies computed package-to-CGPA ratio aggregation execution."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "Which company offers the best package-to-CGPA ratio?"
+        response = agent.process_query(query)
+        
+        self.assertIn("Package-to-CGPA Ratio Analysis", response)
+        self.assertIn("Formula Used:", response)
+        self.assertIn("🏆 Top Companies by Ratio", response)
+        self.assertIn("Intel → 5.91", response)
+        self.assertIn("Qualcomm → 5.74", response)
+        self.assertIn("Google → 5.68", response)
+        self.assertIn("📌 Best Overall:", response)
+
 if __name__ == "__main__":
     unittest.main()
+
+

@@ -1,0 +1,82 @@
+[
+  {
+    "company": "TCS",
+    "pkg_2021": 3.6,
+    "pkg_2022": 3.8,
+    "pkg_2023": 4.0,
+    "pkg_2024": 4.1,
+    "trend": "↑ Steady growth"
+  },
+  {
+    "company": "Infosys",
+    "pkg_2021": 36.0,
+    "pkg_2022": 39.0,
+    "pkg_2023": 41.5,
+    "pkg_2024": 42.9,
+    "trend": "↑ Strong growth"
+  },
+  {
+    "company": "Amazon",
+    "pkg_2021": 22.0,
+    "pkg_2022": 25.0,
+    "pkg_2023": 27.0,
+    "pkg_2024": 28.6,
+    "trend": "↑ Consistent rise"
+  },
+  {
+    "company": "Google",
+    "pkg_2021": 38.0,
+    "pkg_2022": 40.0,
+    "pkg_2023": 41.0,
+    "pkg_2024": 42.0,
+    "trend": "↑ Marginal growth"
+  },
+  {
+    "company": "Deloitte",
+    "pkg_2021": 7.0,
+    "pkg_2022": 8.2,
+    "pkg_2023": 9.0,
+    "pkg_2024": 9.6,
+    "trend": "↑ Steady growth"
+  },
+  {
+    "company": "Microsoft",
+    "pkg_2021": 19.0,
+    "pkg_2022": 20.0,
+    "pkg_2023": 21.0,
+    "pkg_2024": 21.4,
+    "trend": "↑ Slow growth"
+  },
+  {
+    "company": "Wipro",
+    "pkg_2021": 24.0,
+    "pkg_2022": 25.0,
+    "pkg_2023": 25.8,
+    "pkg_2024": 26.1,
+    "trend": "↑ Slow growth"
+  },
+  {
+    "company": "Cognizant",
+    "pkg_2021": 38.0,
+    "pkg_2022": 40.0,
+    "pkg_2023": 41.5,
+    "pkg_2024": 42.3,
+    "trend": "↑ Strong growth"
+  },
+  {
+    "company": "Accenture",
+    "pkg_2021": 14.0,
+    "pkg_2022": 15.0,
+    "pkg_2023": 16.5,
+    "pkg_2024": 17.3,
+    "trend": "↑ Moderate growth"
+  },
+  {
+    "company": "Flipkart",
+    "pkg_2021": 22.0,
+    "pkg_2022": 23.0,
+    "pkg_2023": 24.5,
+    "pkg_2024": 25.3,
+    "trend": "↑ Moderate growth"
+  }
+]
