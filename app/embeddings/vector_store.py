@@ -1,20 +1,34 @@
 import os
 import chromadb
 from chromadb.api.types import Documents, Embeddings
-from sentence_transformers import SentenceTransformer
 from app.config import settings
+
+# Global cache for the lazy-loaded model
+_embedding_model_instance = None
+
+def get_embedding_model():
+    """Lazy loads the SentenceTransformer model to save startup memory."""
+    global _embedding_model_instance
+    if _embedding_model_instance is None:
+        print(f"Loading embedding model: {settings.LOCAL_EMBEDDING_MODEL} (CPU)...")
+        # Heavy import moved inside the function
+        from sentence_transformers import SentenceTransformer
+        _embedding_model_instance = SentenceTransformer(settings.LOCAL_EMBEDDING_MODEL)
+    return _embedding_model_instance
 
 class SentenceTransformerEmbeddingFunction(chromadb.EmbeddingFunction):
     """
     Custom embedding function wrapper for ChromaDB using local SentenceTransformers.
-    Processes vector representations completely locally and offline.
+    Processes vector representations completely locally and offline via lazy-loading.
     """
     def __init__(self, model_name: str):
-        self.model = SentenceTransformer(model_name)
+        # We store the name, but do not initialize the model here to save RAM!
+        self.model_name = model_name
 
     def __call__(self, input: Documents) -> Embeddings:
-        # Encode documents using the sentence transformer model
-        embeddings = self.model.encode(list(input), show_progress_bar=False, convert_to_numpy=True)
+        # Encode documents using the sentence transformer model (loaded only on first query)
+        model = get_embedding_model()
+        embeddings = model.encode(list(input), show_progress_bar=False, convert_to_numpy=True)
         return [e.tolist() for e in embeddings]
 
 class VectorStoreManager:

@@ -2,7 +2,6 @@ import json
 import re
 import numpy as np
 from groq import Groq
-from sentence_transformers import SentenceTransformer
 from app.config import settings
 
 class RouterAgent:
@@ -18,8 +17,8 @@ class RouterAgent:
         if self.api_key:
             self.client = Groq(api_key=self.api_key)
             
-        # Initialize SentenceTransformer local embedding model
-        self.model = SentenceTransformer(settings.LOCAL_EMBEDDING_MODEL)
+        # Lazy-load the embedding model to save RAM during startup on Render
+        self.model = None
         self.threshold = threshold
         
         # Semantic agent profiles
@@ -33,11 +32,22 @@ class RouterAgent:
         }
         
         self.agent_names = list(self.agents_descriptions.keys())
-        # Precompute description embeddings
-        self.agent_embeddings = self.model.encode(
-            [self.agents_descriptions[name] for name in self.agent_names],
-            convert_to_numpy=True
-        )
+        self.agent_embeddings = None
+
+    def _get_model(self):
+        """Lazy loads the embedding model during the first routed query."""
+        if self.model is None:
+            # Heavy import deferred
+            from sentence_transformers import SentenceTransformer
+            self.model = SentenceTransformer(settings.LOCAL_EMBEDDING_MODEL)
+            
+            # Precompute description embeddings only once the model is loaded
+            self.agent_embeddings = self.model.encode(
+                [self.agents_descriptions[name] for name in self.agent_names],
+                convert_to_numpy=True
+            )
+            
+        return self.model
 
     def _extract_entities_local(self, query: str) -> dict:
         """Helper to extract company, cgpa, and package from query using regex/keywords."""
@@ -445,8 +455,8 @@ class RouterAgent:
                 "cleaned_query": query
             }
 
-        # Compute query embedding
-        q_emb = self.model.encode(query, convert_to_numpy=True)
+        # Compute query embedding (lazy loads model on first query)
+        q_emb = self._get_model().encode(query, convert_to_numpy=True)
         
         # Calculate cosine similarities: dot product of normalized vectors
         q_norm = q_emb / (np.linalg.norm(q_emb) + 1e-9)
