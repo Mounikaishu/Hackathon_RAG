@@ -154,6 +154,23 @@ class RouterAgent:
                 "cleaned_query": query
             }
 
+        # High-priority join override BEFORE semantic routing
+        tech_keywords = ["python", "java", "c++", "cloud", "system design", "tech focus", "focused", "technology"]
+        hiring_keywords = ["intern", "interns", "sde", "analyst", "officer", "hiring", "most hires", "hires the most"]
+        comparison_keywords = ["which", "most", "highest", "top"]
+        
+        has_tech_sig = any(tk in query_lower for tk in tech_keywords)
+        has_hiring_sig = any(hk in query_lower for hk in hiring_keywords)
+        has_comp_sig = any(ck in query_lower for ck in comparison_keywords)
+        
+        if has_tech_sig and has_hiring_sig and has_comp_sig:
+            return {
+                "agent": "multi_hop_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Hard join query detected.",
+                "cleaned_query": query
+            }
+
         # Compute query embedding
         q_emb = self.model.encode(query, convert_to_numpy=True)
         

@@ -266,6 +266,47 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("✅ No Conflicts Detected", response)
         self.assertIn("No companies were found with conflicting bond information across retrieved sources.", response)
 
+    def test_multi_hop_hard_filter_sort(self):
+        """Verifies Example 1: Hard Filter + Sort Mode for the benchmark query."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "H3 For CGPA 8.0+, zero backlog students, rank companies by package."
+        response = agent.process_query(query)
+        
+        self.assertIn("🎯 Company Ranking for CGPA 8.0+ and Zero Backlogs", response)
+        self.assertIn("Eligibility Criteria:", response)
+        self.assertIn("• CGPA ≥ 8.0", response)
+        self.assertIn("• Backlogs = 0", response)
+        self.assertIn("🏆 Ranked by Package", response)
+        self.assertIn("1. Infosys → 42.9 LPA", response)
+        self.assertIn("2. Cognizant → 42.3 LPA", response)
+        self.assertIn("3. Intel → 41.4 LPA", response)
+        self.assertIn("4. Qualcomm → 41.3 LPA", response)
+        self.assertIn("5. Capgemini → 38.3 LPA", response)
+        self.assertIn("6. Tech Mahindra → 35.9 LPA", response)
+        self.assertIn("7. SAP → 20.7 LPA", response)
+        self.assertIn("8. Accenture → 17.3 LPA", response)
+        self.assertIn("📌 Best Option:", response)
+        self.assertIn("Infosys offers the highest package among companies matching the eligibility criteria.", response)
+
+    def test_multi_hop_hard_filter_sort_general(self):
+        """Verifies dynamic sorting and filtering on a general query."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "Top companies for CGPA 7.5 and no backlogs"
+        response = agent.process_query(query)
+        
+        self.assertIn("🎯 Company Ranking for CGPA 7.5+ and Zero Backlogs", response)
+        self.assertIn("• CGPA ≥ 7.5", response)
+        self.assertIn("• Backlogs = 0", response)
+        self.assertIn("1. Google → 42.0 LPA", response)
+        self.assertIn("2. Intel → 41.4 LPA", response)
+        self.assertIn("Google offers the highest package among companies matching the eligibility criteria.", response)
+
 if __name__ == "__main__":
     unittest.main()
 
