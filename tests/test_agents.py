@@ -462,5 +462,110 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("📌 Summary:", response)
         self.assertIn("3 companies in the placement dataset primarily focus on Java for technical interviews.", response)
 
+    def test_rag_agent_tech_prep_benchmark(self):
+        """Verifies Example: Tech prep guide and formatting for the benchmark query."""
+        from app.agents.rag_agent import RagAgent
+        agent = RagAgent()
+        agent.client = None
+        
+        query = "What topics should I prepare for a Microsoft interview?"
+        response = agent.process_query(query)
+        
+        self.assertIn("🎯 Microsoft Interview Preparation Guide", response)
+        self.assertIn("Key Topics to Prepare:", response)
+        self.assertIn("1. C++", response)
+        self.assertIn("2. Operating Systems (OS)", response)
+        self.assertIn("3. Database Management Systems (DBMS)", response)
+        self.assertIn("4. Data Structures & Algorithms (DSA)", response)
+        self.assertIn("5. Problem Solving", response)
+        self.assertIn("📌 Preparation Focus:", response)
+        self.assertIn("Prioritize DSA, OS, DBMS, and strong C++ fundamentals for Microsoft interviews.", response)
+
+    def test_rag_agent_tech_prep_low_confidence(self):
+        """Verifies low confidence prep query output has warning prepended."""
+        from app.agents.rag_agent import RagAgent
+        agent = RagAgent()
+        agent.client = None
+        
+        # Test case: Low confidence results passed manually
+        mock_results = [
+            {"text": "General interview guidance: prepare basic coding.", "metadata": {"company": "General", "section": "interview"}, "similarity": 0.15}
+        ]
+        
+        response = agent.medium_retrieval_synthesis_mode("What topics to prepare for Microsoft?", mock_results)
+        
+        self.assertIn("Limited company-specific interview information was found.", response)
+        self.assertIn("Using retrieved placement interview guidance for Microsoft.", response)
+
+    def test_router_override_m6_comparison(self):
+        """Verifies that M6 comparison queries (2 companies + role + vs/versus) route to vision_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+
+        queries = [
+            "How many SDE roles does Amazon hire versus Google?",
+            "Compare intern hiring: Microsoft vs Amazon",
+            "What is the difference between TCS and Infosys analyst hiring?",
+            "Google versus Amazon: who hires more SDEs?",
+        ]
+        for q in queries:
+            route = router.route_query(q)
+            self.assertEqual(
+                route["agent"], "vision_agent",
+                f"Expected vision_agent for: '{q}' — got {route['agent']}"
+            )
+            self.assertIn("M6 targeted hiring comparison", route["reason"])
+
+    def test_vision_agent_m6_benchmark(self):
+        """Verifies M6 benchmark query: 'How many SDE roles does Amazon hire versus Google?'"""
+        from app.agents.vision_agent import VisionAgent
+        agent = VisionAgent()
+
+        query = "How many SDE roles does Amazon hire versus Google?"
+        response = agent.process_query(query)
+
+        # Chart-first pipeline reads actual PNG values (Amazon.png, Google.png)
+        self.assertIn("📊 **[Vision Agent | Targeted Hiring Comparison Mode]**", response)
+        self.assertIn("📊 **SDE Hiring Comparison**", response)
+        # Chart-extracted: Amazon SDE=45, Google SDE=30
+        self.assertIn("Google → 30 SDE roles", response)
+        self.assertIn("📌 **Summary:**", response)
+        self.assertIn("Amazon hires more SDE roles than Google", response)
+
+    def test_vision_agent_m6_general(self):
+        """Verifies M6 mode for a general intern comparison query."""
+        from app.agents.vision_agent import VisionAgent
+        agent = VisionAgent()
+
+        query = "Compare intern hiring: Microsoft vs Amazon"
+        response = agent.process_query(query)
+
+        # Chart-first pipeline reads actual PNG values (Amazon.png, Microsoft.png)
+        self.assertIn("📊 **[Vision Agent | Targeted Hiring Comparison Mode]**", response)
+        self.assertIn("📊 **Intern Hiring Comparison**", response)
+        # Chart-extracted: Amazon INTERN=80, Microsoft INTERN=65
+        self.assertIn("Amazon →", response)
+        self.assertIn("Microsoft →", response)
+        self.assertIn("📌 **Summary:**", response)
+        self.assertIn("Amazon hires more Intern roles than Microsoft", response)
+
+    def test_vision_agent_m6_equal_counts(self):
+        """Verifies M6 tie-break path using two companies that both fall back to HIRING_ROWS.
+
+        Wipro and Oracle have no individual chart PNGs, so both use _lookup_from_table().
+        HIRING_ROWS: wipro analyst=92, oracle analyst=92 → true tie.
+        """
+        from app.agents.vision_agent import VisionAgent
+        agent = VisionAgent()
+
+        result = agent.targeted_hiring_comparison_mode(
+            "Compare analyst hiring: Wipro versus Oracle"
+        )
+
+        self.assertIsNotNone(result)
+        self.assertIn("Both companies hire an equal number", result)
+        self.assertIn("92 each", result)
+
+
 if __name__ == "__main__":
     unittest.main()

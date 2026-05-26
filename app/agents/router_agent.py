@@ -154,6 +154,25 @@ class RouterAgent:
                 "cleaned_query": query
             }
 
+        # High-priority M6 override: targeted hiring comparison (2 companies + role + comparison trigger)
+        # Route to vision_agent for deterministic DataFrame comparison; NOT full synthesis
+        _m6_comparison_triggers = ["versus", "vs", "compare", "difference between"]
+        _m6_role_keywords       = ["sde", "intern", "interns", "analyst", "analysts", "officer", "officers"]
+        _m6_company_names       = ["amazon", "google", "tcs", "infosys", "microsoft",
+                                    "wipro", "cognizant", "accenture", "flipkart", "oracle", "ibm"]
+
+        _m6_companies_found = [c for c in _m6_company_names if c in query_lower]
+        _m6_has_comparison  = any(kw in query_lower for kw in _m6_comparison_triggers)
+        _m6_has_role        = any(kw in query_lower for kw in _m6_role_keywords)
+
+        if len(_m6_companies_found) >= 2 and _m6_has_comparison and _m6_has_role:
+            return {
+                "agent": "vision_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "M6 targeted hiring comparison query detected (2 companies + role + comparison trigger).",
+                "cleaned_query": query
+            }
+
         # High-priority join override BEFORE semantic routing
         tech_keywords = ["python", "java", "c++", "cloud", "system design", "tech focus", "focused", "technology"]
         hiring_keywords = ["intern", "interns", "sde", "analyst", "officer", "hiring", "most hires", "hires the most"]
