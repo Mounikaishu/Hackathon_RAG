@@ -628,5 +628,51 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("4️⃣ Placement Trend (2021–2024)", response)
 
 
+    def test_dataframe_m4_bond_free(self):
+        """Verifies M4 mode for bond-free companies."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "Which companies are bond-free?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Bond-Free Companies", response)
+        self.assertIn("The following companies do not require a service bond:", response)
+        self.assertIn("• Microsoft", response)
+        self.assertIn("• IBM", response)
+        self.assertIn("• Intel", response)
+        self.assertIn("📌 Summary:", response)
+
+    def test_dataframe_m4_backlogs(self):
+        """Verifies M4 mode for backlog-tolerant companies."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "Which companies allow 2 backlogs?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Companies Allowing 2+ Backlog(s)", response)
+        self.assertIn("allow 2 or more active backlog(s):", response)
+        self.assertIn("• TCS", response)
+        self.assertIn("• IBM", response)
+        self.assertIn("📌 Summary:", response)
+
+    def test_dataframe_m4_cgpa_threshold(self):
+        """Verifies M4 mode for CGPA threshold companies."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "Which companies accept cgpa below 6.5?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Companies with CGPA Cutoff ≤ 6.5", response)
+        self.assertIn("have a minimum CGPA requirement of 6.5 or below:", response)
+        self.assertIn("• Amazon", response)
+        self.assertIn("• Microsoft", response)
+        self.assertIn("📌 Summary:", response)
+
 if __name__ == "__main__":
     unittest.main()
