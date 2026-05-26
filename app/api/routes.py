@@ -10,6 +10,7 @@ from app.agents.dataframe_agent import DataframeAgent
 from app.agents.vision_agent import VisionAgent
 from app.agents.conflict_agent import ConflictAgent
 from app.agents.web_search_agent import WebSearchAgent
+from app.agents.multi_hop_agent import MultiHopAgent
 
 router = APIRouter()
 
@@ -30,6 +31,7 @@ dataframe_agent = DataframeAgent()
 vision_agent = VisionAgent()
 conflict_agent = ConflictAgent()
 web_search_agent = WebSearchAgent()
+multi_hop_agent = MultiHopAgent()
 
 def run_indexing_background(pdf_path: str):
     """Triggers the heavy indexing pipeline in a background thread."""
@@ -60,6 +62,8 @@ async def query_system(request: QueryRequest):
     try:
         if target_agent == "dataframe_agent":
             response_text = dataframe_agent.process_query(query)
+        elif target_agent == "multi_hop_agent":
+            response_text = multi_hop_agent.process_query(query)
         elif target_agent == "vision_agent":
             response_text = vision_agent.process_query(query)
         elif target_agent == "conflict_agent":
@@ -72,6 +76,32 @@ async def query_system(request: QueryRequest):
     except Exception as e:
         response_text = f"❌ Agent Routing Execution Error: {str(e)}"
         target_agent = "error_agent"
+
+    # 3. Scope Boundary Handling & Web Agent Integration
+    boundary_words = ["world", "globally", "india", "all companies", "outside dataset", "every company", "across india", "worldwide", "external", "overall"]
+    query_lower = query.lower()
+    
+    if target_agent != "web_search_agent" and any(w in query_lower for w in boundary_words):
+        try:
+            # Trigger the web search agent to get global real-time context
+            web_response = web_search_agent.process_query(query)
+            # Remove the default header from the web response for a cleaner output
+            web_response_clean = web_response.replace("🌐 **[Real-time Web Search Fallback Agent | Querying Live Databases]**\n\n", "")
+            
+            # Formulate the scope boundary response
+            matched_word = [w for w in boundary_words if w in query_lower][0]
+            response_text = (
+                f"⚠️ **Scope Boundary Notice:** This query references terms outside the placement dataset (specifically '{matched_word}'). "
+                f"The system has answered using the local placement dataset and has queried the web to provide global context.\n\n"
+                f"### 📋 Local Dataset Findings:\n{response_text}\n\n"
+                f"### 🌐 Global Web Insights:\n{web_response_clean}"
+            )
+        except Exception as e:
+            # Fallback to standard boundary warning if web search fails
+            response_text = (
+                f"⚠️ **Scope Boundary Notice:** This query references terms outside the placement dataset. "
+                f"The response below is restricted to the SVECW placement dataset.\n\n{response_text}"
+            )
 
     return QueryResponse(
         query=query,
@@ -183,3 +213,20 @@ async def check_status():
             "charts_count": len(os.listdir(settings.CHARTS_DIR)) if os.path.exists(settings.CHARTS_DIR) else 0
         }
     }
+
+
+@router.post("/index")
+async def trigger_indexing(background_tasks: BackgroundTasks):
+    """
+    Triggers the full ingestion, parsing, chunking, and database indexing pipeline
+    in the background.
+    """
+    try:
+        background_tasks.add_task(run_indexing_background, None)
+        return {
+            "status": "success",
+            "message": "Re-indexing pipeline started in the background."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start indexing: {str(e)}")
+

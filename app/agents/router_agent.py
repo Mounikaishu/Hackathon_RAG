@@ -37,6 +37,26 @@ class RouterAgent:
                 "cleaned_query": query
             }
 
+        # 1.5 Fast path for highest/best package queries -> dataframe_agent
+        salary_keywords = [
+            "highest package",
+            "highest paying",
+            "best package",
+            "highest salary",
+            "pays the highest",
+            "top paying",
+            "highest pay",
+            "pays highest",
+            "top salary"
+        ]
+        if any(k in query_lower for k in salary_keywords):
+            return {
+                "agent": "dataframe_agent",
+                "entities": {},
+                "reason": "Salary comparison query detected.",
+                "cleaned_query": query
+            }
+
         # 2. Fast path for Vision / Chart queries
         vision_keywords = ["chart", "graph", "bar", "hiring distribution", "role", "analyst", "intern", "officer", "sde"]
         if any(word in query_lower for word in vision_keywords):
@@ -170,6 +190,26 @@ class RouterAgent:
                 "agent": "multi_hop_agent",
                 "entities": {},
                 "reason": f"Fallback: Multi-hop reasoning request detected. {warning or ''}",
+                "cleaned_query": query
+            }
+
+        # A.5 Check highest/best package triggers (route to dataframe_agent)
+        salary_keywords = [
+            "highest package",
+            "highest paying",
+            "best package",
+            "highest salary",
+            "pays the highest",
+            "top paying",
+            "highest pay",
+            "pays highest",
+            "top salary"
+        ]
+        if any(k in query_lower for k in salary_keywords):
+            return {
+                "agent": "dataframe_agent",
+                "entities": {},
+                "reason": f"Fallback: Salary comparison query detected. {warning or ''}",
                 "cleaned_query": query
             }
 

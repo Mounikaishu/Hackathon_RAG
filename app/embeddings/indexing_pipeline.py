@@ -63,6 +63,10 @@ class IndexingPipeline:
         eligibility_records = table_extractor.extract_eligibility_table()
         print(f"✅ Extracted {len(eligibility_records)} company structured eligibility records.")
 
+        # Extract trends table
+        trends_records = table_extractor.extract_trends_table()
+        print(f"✅ Extracted {len(trends_records)} company structured trend records.")
+
         # Extract charts as high-resolution PNGs
         chart_assets = chart_extractor.extract_chart_pages()
         print(f"✅ Extracted and rendered {len(chart_assets['saved_images'])} chart visual pages.")
@@ -95,14 +99,60 @@ class IndexingPipeline:
         else:
             print("   ⚠️ Warning: Section 2 (Interview Experiences) text block not found.")
 
-        # C. Chunk Temporal Trends & General Sections (Section 5 / 7 etc.)
+        # C. Chunk Temporal Trends & General Sections (Section 5 etc.)
         trend_chunker = TrendChunker()
         for key, sec in doc_structure["sections"].items():
             # Process trend or general sections
-            if "trend" in key or "statistics" in key or "reasoning" in key:
+            if "trend" in key or "reasoning" in key:
                 trend_chunks = trend_chunker.chunk_trend_data(sec["content"])
                 all_chunks.extend(trend_chunks)
                 print(f"   🔹 Constructed {len(trend_chunks)} chronological trend chunks from {sec['title']}.")
+
+        # D. Chunk Section 6 (Conflicting Requirements)
+        for key, sec in doc_structure["sections"].items():
+            if "conflict" in key or "section_6" in key:
+                lines = sec["content"].split("\n")
+                conflict_chunks = []
+                for line in lines:
+                    line_cleaned = line.strip()
+                    if not line_cleaned or len(line_cleaned) < 10:
+                        continue
+                    
+                    # Deduce company
+                    company = None
+                    for comp in ["Amazon", "Google", "TCS", "Infosys", "Deloitte", "Microsoft"]:
+                        if comp.lower() in line_cleaned.lower():
+                            company = comp
+                            break
+                    
+                    # Deduce source
+                    source = "general"
+                    if "official" in line_cleaned.lower():
+                        source = "official"
+                    elif "portal" in line_cleaned.lower():
+                        source = "portal"
+                        
+                    conflict_chunks.append({
+                        "text": f"Conflict Info for {company}: {line_cleaned}",
+                        "metadata": {
+                            "section": "conflict",
+                            "company": company or "Unknown",
+                            "source": source
+                        }
+                    })
+                all_chunks.extend(conflict_chunks)
+                print(f"   🔹 Constructed {len(conflict_chunks)} conflicting data chunks.")
+
+        # E. Chunk Section 7 (Overall Placement Statistics as a Single Chunk)
+        for key, sec in doc_structure["sections"].items():
+            if "statistics" in key or "section_7" in key:
+                all_chunks.append({
+                    "text": f"Section 7: Overall Placement Statistics Table and Info:\n{sec['content']}",
+                    "metadata": {
+                        "section": "statistics"
+                    }
+                })
+                print(f"   🔹 Constructed 1 overall placement statistics chunk.")
 
         # 3. Vector Database Indexing
         print("\n🗄️ Step 3: Indexing vectors in local persistent database...")

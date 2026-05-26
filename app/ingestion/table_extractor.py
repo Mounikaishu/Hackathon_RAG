@@ -171,3 +171,48 @@ class TableExtractor:
                         "tech_focus": tech_focus.strip(", ")
                     })
         return rows
+
+    def extract_trends_table(self) -> list:
+        """
+        Extracts Section 5 Placement Trend data from the PDF.
+        Saves as trends_table.json.
+        """
+        doc = fitz.open(self.pdf_path)
+        extracted_rows = []
+        
+        full_text = ""
+        for page in doc:
+            full_text += page.get_text("text") + "\n"
+            
+        lines = full_text.split("\n")
+        for line in lines:
+            line_cleaned = line.strip()
+            # Check if line starts with any company in our list
+            for comp in self.companies_list:
+                if line_cleaned.startswith(comp):
+                    # Match: Company 2021 2022 2023 2024 Trend
+                    # e.g., Infosys 36.0 39.0 41.5 42.9 ↑ Strong growth
+                    match = re.match(
+                        r"^([A-Za-z0-9&\s\.\;\-\_]+?)\s+(\d+\.\d+|\d+)\s+(\d+\.\d+|\d+)\s+(\d+\.\d+|\d+)\s+(\d+\.\d+|\d+)\s+(.+)$",
+                        line_cleaned
+                    )
+                    if match:
+                        extracted_rows.append({
+                            "company": comp,
+                            "pkg_2021": float(match.group(2)),
+                            "pkg_2022": float(match.group(3)),
+                            "pkg_2023": float(match.group(4)),
+                            "pkg_2024": float(match.group(5)),
+                            "trend": match.group(6).strip()
+                        })
+                        break
+        
+        doc.close()
+        
+        # Save to JSON
+        os.makedirs(settings.PROCESSED_DIR, exist_ok=True)
+        output_path = os.path.join(settings.PROCESSED_DIR, "trends_table.json")
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(extracted_rows, f, indent=2, ensure_ascii=False)
+            
+        return extracted_rows

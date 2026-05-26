@@ -12,7 +12,9 @@ class PandasTool:
 
     def __init__(self):
         self.table_path = os.path.join(settings.PROCESSED_DIR, "eligibility_table.json")
+        self.trends_path = os.path.join(settings.PROCESSED_DIR, "trends_table.json")
         self.df = self._load_dataframe()
+        self.df_trends = self._load_trends_dataframe()
 
     def _load_dataframe(self) -> pd.DataFrame:
         """Loads processed JSON data or returns a structured schema fallback."""
@@ -38,21 +40,44 @@ class PandasTool:
         except Exception:
             return pd.DataFrame(columns=columns)
 
+    def _load_trends_dataframe(self) -> pd.DataFrame:
+        """Loads processed yearly placement trends JSON data or returns fallback schema."""
+        columns = ["company", "pkg_2021", "pkg_2022", "pkg_2023", "pkg_2024", "trend"]
+        
+        if not os.path.exists(self.trends_path):
+            return pd.DataFrame(columns=columns)
+            
+        try:
+            with open(self.trends_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            df = pd.DataFrame(data)
+            if not df.empty:
+                df["pkg_2021"] = pd.to_numeric(df["pkg_2021"], errors="coerce")
+                df["pkg_2022"] = pd.to_numeric(df["pkg_2022"], errors="coerce")
+                df["pkg_2023"] = pd.to_numeric(df["pkg_2023"], errors="coerce")
+                df["pkg_2024"] = pd.to_numeric(df["pkg_2024"], errors="coerce")
+            else:
+                df = pd.DataFrame(columns=columns)
+            return df
+        except Exception:
+            return pd.DataFrame(columns=columns)
+
     def execute_query(self, pandas_code: str) -> dict:
         """
-        Executes a string of pandas code against the DataFrame 'df' in a restricted environment.
+        Executes a string of pandas code against the DataFrames in a restricted environment.
         Returns a structured result dict containing the markdown text representation and status.
         """
-        if self.df.empty:
+        if self.df.empty and self.df_trends.empty:
             return {
                 "success": False,
-                "error": "The eligibility database is currently empty. Please run the ingestion pipeline first.",
+                "error": "The eligibility and trends database is currently empty. Please run the ingestion pipeline first.",
                 "result": ""
             }
 
         # Restrict execution environment to prevent arbitrary code vulnerabilities
         local_vars = {
             "df": self.df,
+            "df_trends": self.df_trends,
             "pd": pd
         }
         

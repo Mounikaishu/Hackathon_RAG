@@ -31,14 +31,24 @@ processed_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data",
 os.makedirs(processed_dir, exist_ok=True)
 app.mount("/static", StaticFiles(directory=processed_dir), name="static")
 
-# Serve Frontend HTML Dashboard
+# Mount React frontend static assets if available (ensure directories exist for startup safety)
+react_assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "dist", "assets")
+os.makedirs(react_assets_dir, exist_ok=True)
+app.mount("/assets", StaticFiles(directory=react_assets_dir), name="assets")
+
+# Serve Frontend HTML Dashboard (Vite React index.html takes precedence, otherwise fallback to legacy index.html)
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
-    index_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app", "api", "index.html")
-    if os.path.exists(index_path):
-        with open(index_path, "r", encoding="utf-8") as f:
+    react_index_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "dist", "index.html")
+    if os.path.exists(react_index_path):
+        with open(react_index_path, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read())
-    return HTMLResponse(content="<h2>SVECW Placement RAG Server is running.</h2><p>Frontend file index.html not found.</p>")
+            
+    legacy_index_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app", "api", "index.html")
+    if os.path.exists(legacy_index_path):
+        with open(legacy_index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h2>SVECW Placement RAG Server is running.</h2><p>Frontend file not found.</p>")
 
 # Include API Router
 app.include_router(router, prefix="/api")
