@@ -116,6 +116,18 @@ class MultiHopAgent:
 
         # 2. INTENT SELECTION & DISPATCH
 
+        # AAAAA. HARD 3-CONDITION OPTIMIZATION TRIGGER
+        student_keywords = ["student", "cgpa", "backlog", "backlogs"]
+        preference_keywords = ["maximum pay", "highest pay", "highest package", "best package", "maximum package", "no bond", "without bond"]
+        constraint_keywords = ["with", "wants", "eligible", "can apply"]
+        
+        has_student = any(k in query_lower for k in student_keywords)
+        has_preference = any(k in query_lower for k in preference_keywords)
+        has_constraint = any(k in query_lower for k in constraint_keywords)
+        
+        if has_student and has_preference and has_constraint:
+            return self.hard_constraint_optimization_mode(query, active_df)
+
         # AAAA. HARD JOIN TRIGGER
         tech_keywords = ["python", "java", "c++", "cloud", "system design", "tech focus", "focused", "technology"]
         hiring_keywords = ["intern", "interns", "sde", "analyst", "officer", "hiring", "most hires", "hires the most"]
@@ -227,10 +239,10 @@ class MultiHopAgent:
                     summary_text = ""
 
             if not summary_text:
-                summary_text = f"{best_comp} hires the highest number of {role.lower() if role != 'Intern' else 'interns'} among {tech}-focused companies."
+                summary_text = f"{best_comp} hires the highest number of {role_plural.lower()} among {tech}-focused companies."
 
             if "hires the highest number" not in summary_text:
-                summary_text = f"{best_comp} hires the highest number of {role.lower() if role != 'Intern' else 'interns'} among {tech}-focused companies."
+                summary_text = f"{best_comp} hires the highest number of {role_plural.lower()} among {tech}-focused companies."
 
             header = f"🎯 {tech}-Focused {role}ship Hiring Analysis\n\n" if role == "Intern" else f"🎯 {tech}-Focused {role} Hiring Analysis\n\n"
             found_title = f"{tech}-focused companies found:\n"
@@ -1219,3 +1231,111 @@ Final Verdict:
         lines.append(f"{best_comp} offers the strongest package-to-CGPA ratio in the dataset, meaning it provides the highest compensation relative to its eligibility requirement.")
         
         return "\n".join(lines)
+
+    def hard_constraint_optimization_mode(self, query: str, df) -> str:
+        """
+        Executes a 3-condition optimization over CGPA, backlog, and bond constraints
+        to find the company offering the maximum package.
+        """
+        query_lower = query.lower()
+
+        # 1. Extract constraints
+        cgpa_val = 7.0
+        cgpa_match = re.search(r"cgpa\s*(?:of|cutoff|requirement|<=|>=|<|>|=)?\s*(\d+\.\d+|\d+)", query_lower)
+        if cgpa_match:
+            try:
+                cgpa_val = float(cgpa_match.group(1))
+            except ValueError:
+                pass
+        else:
+            dec_matches = re.findall(r"\b([4-9]\.\d+|10\.0)\b", query_lower)
+            if dec_matches:
+                cgpa_val = float(dec_matches[0])
+
+        backlog_val = 0
+        backlog_match = re.search(r"(\d+)\s*(?:backlog|backlogs)", query_lower)
+        if backlog_match:
+            try:
+                backlog_val = int(backlog_match.group(1))
+            except ValueError:
+                pass
+
+        bond_required = 1
+        if "no bond" in query_lower or "without bond" in query_lower:
+            bond_required = 0
+
+        # 2. Filtering
+        eligible_df = df.copy()
+        eligible_df["company"] = eligible_df["company"].str.replace(";", "").str.strip()
+        
+        eligible_df = eligible_df[eligible_df["min_cgpa"] <= cgpa_val]
+        eligible_df = eligible_df[eligible_df["max_backlogs"] >= backlog_val]
+        if bond_required == 0:
+            eligible_df = eligible_df[eligible_df["bond_years"] == 0]
+
+        if eligible_df.empty:
+            return "No companies matching all three constraints were found."
+
+        # 3. Optimization
+        best_row = eligible_df.loc[eligible_df["package_lpa"].idxmax()]
+        best_company = best_row["company"]
+        package = best_row["package_lpa"]
+        min_cgpa_req = best_row["min_cgpa"]
+        max_backlogs_req = best_row["max_backlogs"]
+        bond_years_req = best_row["bond_years"]
+
+        # 4. Explanation summary
+        summary_text = ""
+        if self.client:
+            system_prompt = (
+                "You are a professional SVECW Placement Optimization Analyst.\n"
+                "Write a concise 1-2 sentence justification under the header '📌 Why this company?' explaining why the chosen company is the best recommendation based ONLY on the provided constraints and optimization results.\n"
+                "CRITICAL RULES:\n"
+                "1. Base your statement strictly on the fact that the company offers the highest package among eligible companies with no bond, cgpa, and backlog constraints.\n"
+                "2. DO NOT invent facts, companies, or values.\n"
+                "3. Output ONLY the raw justification sentence without any quotes, headers, or markdown prefixes."
+            )
+            user_content = (
+                f"Query: {query}\n"
+                f"Student Profile: CGPA={cgpa_val}, Backlogs={backlog_val}, No Bond={bond_required == 0}\n"
+                f"Best Company: {best_company} offering {package} LPA\n"
+                f"Company Details: Min CGPA requirement={min_cgpa_req}, Allows up to={max_backlogs_req} backlogs, Bond={bond_years_req} years"
+            )
+            try:
+                chat_completion = self.client.chat.completions.create(
+                    model=settings.GROQ_TEXT_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ],
+                    temperature=0.1
+                )
+                summary_text = chat_completion.choices[0].message.content.strip()
+            except Exception as e:
+                print(f"⚠️ Groq API error in Placement Optimization: {e}")
+                summary_text = ""
+
+        if not summary_text or "offers the highest package" not in summary_text:
+            summary_text = f"{best_company} offers the highest package among companies satisfying all three constraints."
+
+        bond_preference_profile = "No bond" if bond_required == 0 else "Allowed"
+        backlog_match_str = f"Allows {max_backlogs_req} backlog" if max_backlogs_req == 1 else f"Allows {max_backlogs_req} backlogs"
+
+        response = (
+            "🎯 Placement Optimization Analysis\n\n"
+            "Student Profile:\n"
+            f"• CGPA: {cgpa_val}\n"
+            f"• Backlogs: {backlog_val}\n"
+            f"• Bond Preference: {bond_preference_profile}\n\n"
+            "🏆 Best Eligible Company:\n"
+            f"{best_company}\n\n"
+            "📋 Eligibility Match\n\n"
+            f"• Minimum CGPA → {min_cgpa_req} ✅\n"
+            f"• {backlog_match_str} ✅\n"
+            f"• Bond Requirement → {bond_years_req} years ✅\n\n"
+            "💰 Package Offered:\n"
+            f"{package:.1f} LPA\n\n"
+            "📌 Why this company?\n\n"
+            f"{summary_text}"
+        )
+        return response

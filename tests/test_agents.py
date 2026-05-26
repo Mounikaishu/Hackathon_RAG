@@ -307,7 +307,117 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("2. Intel → 41.4 LPA", response)
         self.assertIn("Google offers the highest package among companies matching the eligibility criteria.", response)
 
+    def test_router_override_join(self):
+        """Verifies that hard join queries route immediately to multi_hop_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        
+        queries = [
+            "Which Python-focused company hires the most Interns?",
+            "Which Java-focused company hires the most SDEs?",
+            "Which Cloud-focused company hires the most analysts?"
+        ]
+        for q in queries:
+            route = router.route_query(q)
+            self.assertEqual(route["agent"], "multi_hop_agent", f"Failed to route query: '{q}'")
+
+    def test_multi_hop_hard_join_benchmark(self):
+        """Verifies Example 3: Hard Join Mode for the benchmark query."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "H2 Which Python-focused company hires the most Interns?"
+        response = agent.process_query(query)
+        
+        self.assertIn("🎯 Python-Focused Internship Hiring Analysis", response)
+        self.assertIn("Python-focused companies found:", response)
+        self.assertIn("• Google", response)
+        self.assertIn("• Oracle", response)
+        self.assertIn("📊 Intern Hiring Comparison", response)
+        self.assertIn("Google → 30 Interns", response)
+        self.assertIn("Oracle → 92 Interns", response)
+        self.assertIn("🏆 Best Match:", response)
+        self.assertIn("Oracle hires the highest number of interns among Python-focused companies.", response)
+
+    def test_multi_hop_hard_join_general(self):
+        """Verifies dynamic joining and filtering on a general query."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "Which Java-focused company hires the most SDEs?"
+        response = agent.process_query(query)
+        
+        self.assertIn("🎯 Java-Focused SDE Hiring Analysis", response)
+        self.assertIn("Java-focused companies found:", response)
+        self.assertIn("• Infosys", response)
+        self.assertIn("• Cognizant", response)
+        self.assertIn("• Samsung R&D", response)
+        self.assertIn("📊 SDE Hiring Comparison", response)
+        self.assertIn("Infosys → 30 SDEs", response)
+        self.assertIn("Cognizant → 48 SDEs", response)
+        self.assertIn("Samsung R&D → 42 SDEs", response)
+        self.assertIn("🏆 Best Match:", response)
+        self.assertIn("Cognizant hires the highest number of sdes among Java-focused companies.", response)
+
+    def test_router_override_optimization(self):
+        """Verifies that 3-condition optimization queries route immediately to multi_hop_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        
+        query = "A student with CGPA 7.0, 1 backlog wants maximum pay with no bond"
+        route_result = router.route_query(query)
+        self.assertEqual(route_result["agent"], "multi_hop_agent")
+        self.assertIn("Hard 3-condition optimization query detected.", route_result["reason"])
+
+    def test_multi_hop_optimization_benchmark(self):
+        """Verifies Example 1: Hard 3-Condition Filter Mode for the benchmark query."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "H1 A student with CGPA 7.0, 1 backlog wants maximum pay with no bond"
+        response = agent.process_query(query)
+        
+        self.assertIn("🎯 Placement Optimization Analysis", response)
+        self.assertIn("Student Profile:", response)
+        self.assertIn("• CGPA: 7.0", response)
+        self.assertIn("• Backlogs: 1", response)
+        self.assertIn("• Bond Preference: No bond", response)
+        self.assertIn("🏆 Best Eligible Company:", response)
+        self.assertIn("Microsoft", response)
+        self.assertIn("📋 Eligibility Match", response)
+        self.assertIn("• Minimum CGPA → 6.1 ✅", response)
+        self.assertIn("• Allows 1 backlog ✅", response)
+        self.assertIn("• Bond Requirement → 0 years ✅", response)
+        self.assertIn("💰 Package Offered:", response)
+        self.assertIn("21.4 LPA", response)
+        self.assertIn("📌 Why this company?", response)
+        self.assertIn("Microsoft offers the highest package among companies satisfying all three constraints.", response)
+
+    def test_multi_hop_optimization_general(self):
+        """Verifies dynamic 3-condition optimization on a different profile where bond is allowed."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+        
+        query = "A student with CGPA 6.4, 1 backlog wants maximum pay"
+        response = agent.process_query(query)
+        
+        self.assertIn("🎯 Placement Optimization Analysis", response)
+        self.assertIn("Student Profile:", response)
+        self.assertIn("• CGPA: 6.4", response)
+        self.assertIn("• Backlogs: 1", response)
+        self.assertIn("• Bond Preference: Allowed", response)
+        self.assertIn("🏆 Best Eligible Company:", response)
+        self.assertIn("Amazon", response)
+        self.assertIn("📋 Eligibility Match", response)
+        self.assertIn("• Minimum CGPA → 6.4 ✅", response)
+        self.assertIn("• Allows 1 backlog ✅", response)
+        self.assertIn("• Bond Requirement → 2 years ✅", response)
+        self.assertIn("💰 Package Offered:", response)
+        self.assertIn("28.6 LPA", response)
+
 if __name__ == "__main__":
     unittest.main()
-
-

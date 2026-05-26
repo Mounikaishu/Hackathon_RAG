@@ -171,6 +171,23 @@ class RouterAgent:
                 "cleaned_query": query
             }
 
+        # High-priority 3-condition optimization override BEFORE semantic routing
+        student_keywords = ["student", "cgpa", "backlog", "backlogs"]
+        preference_keywords = ["maximum pay", "highest pay", "highest package", "best package", "maximum package", "no bond", "without bond"]
+        constraint_keywords = ["with", "wants", "eligible", "can apply"]
+        
+        has_student = any(k in query_lower for k in student_keywords)
+        has_preference = any(k in query_lower for k in preference_keywords)
+        has_constraint = any(k in query_lower for k in constraint_keywords)
+        
+        if has_student and has_preference and has_constraint:
+            return {
+                "agent": "multi_hop_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Hard 3-condition optimization query detected.",
+                "cleaned_query": query
+            }
+
         # Compute query embedding
         q_emb = self.model.encode(query, convert_to_numpy=True)
         
