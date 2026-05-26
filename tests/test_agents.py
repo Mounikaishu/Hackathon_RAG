@@ -174,6 +174,98 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("Google → 5.68", response)
         self.assertIn("📌 Best Overall:", response)
 
+    def test_conflict_agent_amazon_cgpa(self):
+        """Verifies Case 1: Amazon CGPA conflict explanation and formatting."""
+        from app.agents.conflict_agent import ConflictAgent
+        agent = ConflictAgent()
+        agent.client = None
+        
+        query = "Is the Amazon CGPA cutoff 6.4 or 7.0? Explain."
+        response = agent.process_query(query)
+        
+        self.assertIn("⚠️ Conflict Detected", response)
+        self.assertIn("Two different CGPA cutoff values were found for Amazon.", response)
+        self.assertIn("• Official Placement Source → 6.4 CGPA", response)
+        self.assertIn("• Placement Portal Source → 7.0 CGPA", response)
+        self.assertIn("🧠 Explanation", response)
+        self.assertIn("Since official placement records are considered more reliable than secondary portal information, the system prioritizes the official source.", response)
+        self.assertIn("✅ Recommended Value", response)
+        self.assertIn("Amazon CGPA cutoff = 6.4", response)
+
+    def test_conflict_agent_google_package(self):
+        """Verifies Case 2: Google package conflict explanation and formatting."""
+        from app.agents.conflict_agent import ConflictAgent
+        agent = ConflictAgent()
+        agent.client = None
+        
+        query = "What is Google's package? 42 or 45 LPA?"
+        response = agent.process_query(query)
+        
+        self.assertIn("⚠️ Conflict Detected", response)
+        self.assertIn("Two package values were found for Google.", response)
+        self.assertIn("• Official Placement Source → 42.0 LPA", response)
+        self.assertIn("• Secondary Portal Source → 45.0 LPA", response)
+        self.assertIn("🧠 Explanation", response)
+        self.assertIn("Official placement records are prioritized because they are institution-verified.", response)
+        self.assertIn("✅ Recommended Value", response)
+        self.assertIn("Google package = 42.0 LPA", response)
+
+    def test_conflict_agent_no_conflict(self):
+        """Verifies Case 3: Consistent sources response layout (No Conflict)."""
+        from app.agents.conflict_agent import ConflictAgent
+        agent = ConflictAgent()
+        agent.client = None
+        
+        query = "What is Amazon CGPA cutoff?"
+        response = agent.process_query(query)
+        
+        self.assertIn("✅ No Conflict Detected", response)
+        self.assertIn("The retrieved sources consistently report Amazon's minimum CGPA cutoff as 6.4.", response)
+
+    def test_router_override_conflict(self):
+        """Verifies that conflict keywords trigger immediate override routing to conflict_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        
+        queries = [
+            "Which company had conflicting CGPA data across sources?",
+            "What companies have mismatch in package?",
+            "Is there a discrepancy in cutoff?",
+            "Tell me if there is inconsistency in bond details"
+        ]
+        for q in queries:
+            route = router.route_query(q)
+            self.assertEqual(route["agent"], "conflict_agent", f"Failed to route query: '{q}'")
+
+    def test_conflict_agent_global_scan_cgpa(self):
+        """Verifies Example 1: Global CGPA conflict scan and formatting."""
+        from app.agents.conflict_agent import ConflictAgent
+        agent = ConflictAgent()
+        agent.client = None
+        
+        query = "Which company had conflicting CGPA data across sources?"
+        response = agent.process_query(query)
+        
+        self.assertIn("⚠️ Conflict Detection Analysis", response)
+        self.assertIn("The following companies contain conflicting CGPA cutoff values across retrieved sources:", response)
+        self.assertIn("• Amazon\nOfficial → 6.4\nPortal → 7.0", response)
+        self.assertIn("• Google\nOfficial → 7.4\nPortal → 7.8", response)
+        self.assertIn("📌 Summary", response)
+        self.assertIn("2 companies were found with conflicting CGPA information.", response)
+        self.assertIn("Official placement records are prioritized during conflict resolution.", response)
+
+    def test_conflict_agent_global_scan_bond(self):
+        """Verifies Example 2: Global Bond scan returns 'No Conflicts Detected'."""
+        from app.agents.conflict_agent import ConflictAgent
+        agent = ConflictAgent()
+        agent.client = None
+        
+        query = "Which companies had conflicting bond information?"
+        response = agent.process_query(query)
+        
+        self.assertIn("✅ No Conflicts Detected", response)
+        self.assertIn("No companies were found with conflicting bond information across retrieved sources.", response)
+
 if __name__ == "__main__":
     unittest.main()
 

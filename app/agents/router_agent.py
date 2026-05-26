@@ -134,6 +134,26 @@ class RouterAgent:
         """
         query_lower = query.lower()
 
+        # High-priority routing override BEFORE semantic routing
+        conflict_keywords = [
+            "conflict",
+            "conflicting",
+            "mismatch",
+            "discrepancy",
+            "inconsistency",
+            "across sources",
+            "different values",
+            "contradiction",
+            "which is correct"
+        ]
+        if any(kw in query_lower for kw in conflict_keywords):
+            return {
+                "agent": "conflict_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "High-priority routing override: conflict keyword matched.",
+                "cleaned_query": query
+            }
+
         # Compute query embedding
         q_emb = self.model.encode(query, convert_to_numpy=True)
         
