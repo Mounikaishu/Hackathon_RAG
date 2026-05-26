@@ -715,8 +715,8 @@ class TestAgentsAndTools(unittest.TestCase):
         response = agent.process_query(query)
 
         self.assertIn("🎯 Amazon Technical Focus", response)
-        self.assertIn("The programming language primarily tested at Amazon is:", response)
-        self.assertIn("• C++", response)
+        self.assertIn("The primary technology focus for Amazon interviews is:", response)
+        self.assertIn("C++", response)
         self.assertIn("📌 Summary:", response)
         self.assertIn("technical interview focus in the placement dataset is C++.", response)
         # Strict: no raw dataframe output, no formal letter
@@ -822,6 +822,119 @@ class TestAgentsAndTools(unittest.TestCase):
         result = router.route_query("What is the package offered by Google?")
         self.assertEqual(result["agent"], "dataframe_agent")
         self.assertIn("direct table lookup query", result["reason"].lower())
+
+    def test_dataframe_e4_technology_focus_lookup(self):
+        """Verifies E4 Technology Focus Direct Lookup Mode for Flipkart."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "Which technology does Flipkart focus on in interviews?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Flipkart Technical Focus", response)
+        self.assertIn("The primary technology focus for Flipkart interviews is:", response)
+        self.assertIn("• Python", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("technical interview focus in the placement dataset is Python.", response)
+
+        # Strict exclusions
+        self.assertNotIn("Dear Candidate", response)
+        self.assertNotIn("tech_focus", response)
+        self.assertNotIn("career advice", response.lower())
+
+    def test_router_override_e4_technology_focus_lookup(self):
+        """Verifies that E4 technology focus lookup query routes to dataframe_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        result = router.route_query("Which technology does Flipkart focus on in interviews?")
+        self.assertEqual(result["agent"], "dataframe_agent")
+        self.assertIn("technology focus retrieval query", result["reason"].lower())
+
+    def test_dataframe_e2_backlog_lookup_allows(self):
+        """Verifies E2 Backlog Direct Lookup Mode for Deloitte (allows backlogs)."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "How many backlogs does Deloitte allow?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Deloitte Backlog Policy", response)
+        self.assertIn("Deloitte allows up to:", response)
+        self.assertIn("📄 1 active backlog(s)", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("placement dataset records Deloitte's maximum backlog allowance as 1.", response)
+        # Strict exclusions
+        self.assertNotIn("Dear Candidate", response)
+        self.assertNotIn("max_backlogs", response)
+        self.assertNotIn("which companies", response.lower())
+
+    def test_dataframe_e2_backlog_lookup_none(self):
+        """Verifies E2 Backlog Direct Lookup Mode for Intel (no backlogs)."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "What is the max backlogs for Intel?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Intel Backlog Policy", response)
+        self.assertIn("🚫 Intel does not allow any active backlogs.", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("placement dataset records Intel's backlog allowance as 0.", response)
+
+    def test_router_override_e2_backlog_lookup(self):
+        """Verifies that E2 backlog direct lookup routes to dataframe_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        result = router.route_query("How many backlogs does Deloitte allow?")
+        self.assertEqual(result["agent"], "dataframe_agent")
+        self.assertIn("direct backlog lookup query", result["reason"].lower())
+
+    def test_dataframe_e3_bond_lookup_with_bond(self):
+        """Verifies E3 Bond Direct Lookup Mode for Amazon (has bond)."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "What is the bond period for Amazon?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Amazon Bond Details", response)
+        self.assertIn("Amazon has a service bond period of:", response)
+        self.assertIn("📄 2 years", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("placement dataset records Amazon", response)
+        # Strict exclusions
+        self.assertNotIn("Dear Candidate", response)
+        self.assertNotIn("bond_years", response)
+        self.assertNotIn("which companies", response.lower())
+
+    def test_dataframe_e3_bond_lookup_bond_free(self):
+        """Verifies E3 Bond Direct Lookup Mode for Microsoft (bond-free)."""
+        from app.agents.dataframe_agent import DataframeAgent
+        agent = DataframeAgent()
+        agent.client = None
+
+        query = "What is the bond period for Microsoft?"
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Microsoft Bond Details", response)
+        self.assertIn("Microsoft has no service bond.", response)
+        self.assertIn("📌 Summary:", response)
+        self.assertIn("Microsoft is bond-free in the placement dataset.", response)
+        # Must NOT return multi-row bond-free list
+        self.assertNotIn("Backlogs Allowed", response)
+        self.assertNotIn("IBM", response)
+
+    def test_router_override_e3_bond_lookup(self):
+        """Verifies that E3 bond direct lookup routes to dataframe_agent."""
+        from app.agents.router_agent import RouterAgent
+        router = RouterAgent()
+        result = router.route_query("What is the bond period for Amazon?")
+        self.assertEqual(result["agent"], "dataframe_agent")
+        self.assertIn("direct bond lookup query", result["reason"].lower())
 
 if __name__ == "__main__":
     unittest.main()

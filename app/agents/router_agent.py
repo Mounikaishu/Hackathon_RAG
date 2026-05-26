@@ -279,6 +279,72 @@ class RouterAgent:
                 "reason": "Tech-focus filtering query detected.",
                 "cleaned_query": query
             }
+        # High-priority E2 Backlog Direct Lookup override
+        _e2_backlog_keywords = ["backlog", "backlogs", "active backlogs", "max backlogs"]
+        _e2_lookup_keywords = ["how many", "what is", "allow", "limit"]
+        _e2_company_keywords = [
+            "amazon", "google", "microsoft", "tcs", "infosys",
+            "oracle", "wipro", "ibm", "deloitte", "flipkart", "hcl",
+            "tech mahindra", "qualcomm", "samsung", "adobe", "intel"
+        ]
+        _e2_list_keywords = ["which companies", "all companies", "list", "who allows", "who permit"]
+
+        if (
+            any(kw in query_lower for kw in _e2_backlog_keywords)
+            and any(kw in query_lower for kw in _e2_company_keywords)
+            and any(kw in query_lower for kw in _e2_lookup_keywords)
+            and not any(kw in query_lower for kw in _e2_list_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Direct backlog lookup query detected.",
+                "cleaned_query": query
+            }
+
+        # High-priority E3 Bond Direct Lookup override
+        _e3_bond_keywords = ["bond", "bond period", "service bond", "bond duration"]
+        _e3_lookup_keywords = ["what is", "how long", "period", "duration"]
+        _e3_company_keywords = [
+            "amazon", "google", "microsoft", "tcs", "infosys",
+            "oracle", "wipro", "ibm"
+        ]
+        _e3_list_keywords = ["bond-free", "which companies", "all companies", "list"]
+
+        if (
+            any(kw in query_lower for kw in _e3_bond_keywords)
+            and any(kw in query_lower for kw in _e3_company_keywords)
+            and any(kw in query_lower for kw in _e3_lookup_keywords)
+            and not any(kw in query_lower for kw in _e3_list_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Direct bond lookup query detected.",
+                "cleaned_query": query
+            }
+
+        # High-priority E4 Technology Focus override
+        _e4_tech_keywords = [
+            "technology", "tech focus", "technical focus", "focus on",
+            "programming language", "language"
+        ]
+        _e4_company_keywords = [
+            "flipkart", "amazon", "google", "microsoft", "oracle",
+            "tcs", "infosys", "wipro", "ibm"
+        ]
+
+        if (
+            any(kw in query_lower for kw in _e4_tech_keywords)
+            and any(kw in query_lower for kw in _e4_company_keywords)
+        ):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Technology focus retrieval query detected.",
+                "cleaned_query": query
+            }
+
         # High-priority E5 Direct Table Lookup override
         _e5_package_keywords = ["package", "salary", "lpa", "compensation", "offered"]
         _e5_company_keywords = [

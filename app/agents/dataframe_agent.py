@@ -20,6 +20,55 @@ class DataframeAgent:
         """Processes tabular query through code generation, execution, and synthesis."""
         query_lower = query.lower()
 
+        # E2: Backlog Direct Lookup Mode
+        _e2_backlog_keywords = ["backlog", "backlogs", "active backlogs", "max backlogs"]
+        _e2_lookup_keywords = ["how many", "what is", "allow", "limit"]
+        _e2_company_keywords = [
+            "amazon", "google", "microsoft", "tcs", "infosys",
+            "oracle", "wipro", "ibm", "deloitte", "flipkart", "hcl",
+            "tech mahindra", "qualcomm", "samsung", "adobe", "intel"
+        ]
+        _e2_list_keywords = ["which companies", "all companies", "list", "who allows", "who permit"]
+
+        if (
+            any(kw in query_lower for kw in _e2_backlog_keywords)
+            and any(kw in query_lower for kw in _e2_company_keywords)
+            and any(kw in query_lower for kw in _e2_lookup_keywords)
+            and not any(kw in query_lower for kw in _e2_list_keywords)
+        ):
+            return self.backlog_lookup_mode(query)
+
+        # E3: Bond Direct Lookup Mode
+        _e3_bond_keywords = ["bond", "bond period", "service bond", "bond duration"]
+        _e3_lookup_keywords = ["what is", "how long", "period", "duration"]
+        _e3_company_keywords = [
+            "amazon", "google", "microsoft", "tcs", "infosys",
+            "oracle", "wipro", "ibm"
+        ]
+        _e3_list_keywords = ["bond-free", "which companies", "all companies", "list"]
+        if (
+            any(kw in query_lower for kw in _e3_bond_keywords)
+            and any(kw in query_lower for kw in _e3_company_keywords)
+            and any(kw in query_lower for kw in _e3_lookup_keywords)
+            and not any(kw in query_lower for kw in _e3_list_keywords)
+        ):
+            return self.bond_lookup_mode(query)
+
+        # E4: Technology Focus Lookup Mode
+        _e4_tech_keywords = [
+            "technology", "tech focus", "technical focus", "focus on",
+            "programming language", "language"
+        ]
+        _e4_company_keywords = [
+            "flipkart", "amazon", "google", "microsoft", "oracle",
+            "tcs", "infosys", "wipro", "ibm"
+        ]
+        if (
+            any(kw in query_lower for kw in _e4_tech_keywords)
+            and any(kw in query_lower for kw in _e4_company_keywords)
+        ):
+            return self.technology_focus_lookup_mode(query)
+
         # E5: Direct Table Lookup Mode
         _e5_package_keywords = ["package", "salary", "lpa", "compensation", "offered"]
         _e5_company_keywords = [
@@ -376,6 +425,159 @@ class DataframeAgent:
             f"{summary_text}"
         )
         return response
+
+    # ── E2: Backlog Direct Lookup Mode ─────────────────────────────────────────
+    def backlog_lookup_mode(self, query: str) -> str:
+        """
+        Handles E2 Backlog Direct Lookup queries (e.g. How many backlogs does Deloitte allow?).
+        Extracts company, retrieves max_backlogs deterministically, and formats a clean response.
+        """
+        query_lower = query.lower()
+        df = self.pandas_tool.df.copy()
+        df["company"] = df["company"].str.replace(";", "").str.strip()
+
+        # Step 1: Extract company
+        _e2_company_keywords = [
+            "amazon", "google", "microsoft", "tcs", "infosys",
+            "oracle", "wipro", "ibm", "deloitte", "flipkart", "hcl",
+            "tech mahindra", "qualcomm", "samsung", "adobe", "intel"
+        ]
+
+        target_company = None
+        for comp in _e2_company_keywords:
+            if comp in query_lower:
+                target_company = comp
+                break
+
+        if not target_company:
+            return "⚠️ Unable to detect target company for backlog lookup."
+
+        # Step 2: Retrieve company row
+        company_row = df[df["company"].str.lower() == target_company]
+        if company_row.empty:
+            return f"⚠️ No data found for company: {target_company.capitalize()}"
+
+        display_company = company_row["company"].iloc[0]
+
+        # Step 3: Deterministic retrieval
+        max_backlogs = int(company_row["max_backlogs"].iloc[0])
+
+        # Step 4: Format clean response
+        if max_backlogs == 0:
+            return (
+                f"🎯 {display_company} Backlog Policy\n\n"
+                f"🚫 {display_company} does not allow any active backlogs.\n\n"
+                f"📌 Summary:\n"
+                f"The placement dataset records {display_company}'s backlog allowance as 0."
+            )
+        else:
+            return (
+                f"🎯 {display_company} Backlog Policy\n\n"
+                f"{display_company} allows up to:\n\n"
+                f"📄 {max_backlogs} active backlog(s)\n\n"
+                f"📌 Summary:\n"
+                f"The placement dataset records {display_company}'s maximum backlog allowance as {max_backlogs}."
+            )
+
+    # ── E3: Bond Direct Lookup Mode ────────────────────────────────────────────
+    def bond_lookup_mode(self, query: str) -> str:
+        """
+        Handles E3 Bond Direct Lookup queries (e.g. What is the bond period for Amazon?).
+        Extracts company, retrieves bond_years deterministically, and formats a clean response.
+        """
+        query_lower = query.lower()
+        df = self.pandas_tool.df.copy()
+        df["company"] = df["company"].str.replace(";", "").str.strip()
+
+        # Step 1: Extract company
+        _e3_company_keywords = [
+            "amazon", "google", "microsoft", "tcs", "infosys",
+            "oracle", "wipro", "ibm"
+        ]
+
+        target_company = None
+        for comp in _e3_company_keywords:
+            if comp in query_lower:
+                target_company = comp
+                break
+
+        if not target_company:
+            return "⚠️ Unable to detect target company for bond lookup."
+
+        # Step 2: Retrieve company row
+        company_row = df[df["company"].str.lower() == target_company]
+        if company_row.empty:
+            return f"⚠️ No data found for company: {target_company.capitalize()}"
+
+        display_company = company_row["company"].iloc[0]
+
+        # Step 3: Deterministic retrieval
+        bond_years = int(company_row["bond_years"].iloc[0])
+
+        # Step 4: Format clean response (zero bond vs active bond)
+        if bond_years == 0:
+            return (
+                f"🎯 {display_company} Bond Details\n\n"
+                f"✅ {display_company} has no service bond.\n\n"
+                f"📌 Summary:\n"
+                f"{display_company} is bond-free in the placement dataset."
+            )
+        else:
+            yr_str = "year" if bond_years == 1 else "years"
+            return (
+                f"🎯 {display_company} Bond Details\n\n"
+                f"{display_company} has a service bond period of:\n\n"
+                f"📄 {bond_years} {yr_str}\n\n"
+                f"📌 Summary:\n"
+                f"The placement dataset records {display_company}'s bond requirement as {bond_years} {yr_str}."
+            )
+
+    # ── E4: Technology Focus Lookup Mode ──────────────────────────────────────
+    def technology_focus_lookup_mode(self, query: str) -> str:
+        """
+        Handles E4 Technology Focus Direct Lookup queries (e.g. Which technology does Flipkart focus on in interviews?).
+        Extracts company, maps attribute, retrieves value deterministically, and formats a clean response.
+        """
+        query_lower = query.lower()
+        df = self.pandas_tool.df.copy()
+        df["company"] = df["company"].str.replace(";", "").str.strip()
+
+        # Step 1: Extract company
+        _e4_company_keywords = [
+            "flipkart", "amazon", "google", "microsoft", "oracle",
+            "tcs", "infosys", "wipro", "ibm"
+        ]
+        
+        target_company = None
+        for comp in _e4_company_keywords:
+            if comp in query_lower:
+                target_company = comp
+                break
+                
+        if not target_company:
+            return "⚠️ Unable to detect target company for technology focus lookup."
+
+        # Step 2: Retrieve company row
+        company_row = df[df["company"].str.lower() == target_company]
+        if company_row.empty:
+            return f"⚠️ No data found for company: {target_company.capitalize()}"
+
+        display_company = company_row["company"].iloc[0]
+
+        # Step 3: Map attribute
+        attribute = "tech_focus"
+
+        # Step 4: Deterministic retrieval
+        tech_focus = company_row[attribute].iloc[0]
+
+        # Step 5: Format clean response
+        return (
+            f"🎯 {display_company} Technical Focus\n\n"
+            f"The primary technology focus for {display_company} interviews is:\n\n"
+            f"• {tech_focus}\n\n"
+            f"📌 Summary:\n"
+            f"{display_company}’s technical interview focus in the placement dataset is {tech_focus}."
+        )
 
     # ── E5: Direct Table Lookup Mode ──────────────────────────────────────────
     def direct_table_lookup_mode(self, query: str) -> str:
