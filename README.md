@@ -14,20 +14,8 @@
 
 <br/>
 
-The **Agentic RAG Placement Intelligence Assistant** is a state-of-the-art AI system designed to answer complex placement-related queries. It seamlessly unifies structured tabular reasoning, advanced textual Retrieval-Augmented Generation (RAG), multi-hop synthesis, conflict resolution, and vision-based hiring analytics to provide exact, grounded, and highly formatted intelligence. 
+The ** RAG Placement Intelligence Assistant** is a state-of-the-art AI system designed to answer complex placement-related queries. It seamlessly unifies structured tabular reasoning, advanced textual Retrieval-Augmented Generation (RAG), multi-hop synthesis, conflict resolution, and vision-based hiring analytics to provide exact, grounded, and highly formatted intelligence. 
 
----
-
-## 🎥 Demo
-
-*Add GIF / demo video here*
-
-## 📸 Screenshots
-
-*Add screenshot placeholder 1*
-*Add screenshot placeholder 2*
-
----
 
 ## 🛑 Problem Statement
 
@@ -283,39 +271,3 @@ python main.py
 
 ---
 
-## 💡 Example Queries
-
-### Easy
-- *"What is the package offered by Google?"*
-- *"What is the bond period for Amazon?"*
-- *"How many backlogs does Deloitte allow?"*
-
-### Medium
-- *"List all companies that allow active backlogs."*
-- *"Which companies offer more than 20 LPA?"*
-
-### Hard
-- *"Compare the hiring trends of SDE roles between Google and Amazon."*
-- *"Does the official document's CGPA cutoff for Microsoft conflict with the portal?"*
-
----
-
-## 🔮 Future Improvements
-
-- **Real-Time Portal Sync:** Integration with active university placement portals via webhooks.
-- **Multilingual Support:** Broadening access for diverse student populations.
-- **Predictive Placement Insights:** Machine learning models to predict a student's probability of clearing specific companies.
-- **Recruiter Analytics Dashboard:** Real-time visibility into student eligibility for visiting companies.
-- **Explainability Traces:** Exposing the reasoning chain visibly to the end-user.
-
----
-
-## 👥 Contributors
-
-- **Your Name/Team Name** - *Systems Architect & AI Engineer*
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License.
