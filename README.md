@@ -6,10 +6,8 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)](#)
 [![LangChain](https://img.shields.io/badge/LangChain-Enabled-green?logo=langchain&logoColor=white)](#)
-[![Agentic AI](https://img.shields.io/badge/Agentic%20AI-Core%20Architecture-orange)](#)
 [![RAG](https://img.shields.io/badge/RAG-Advanced-red)](#)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)](#)
-[![Hackathon Project](https://img.shields.io/badge/Hackathon-Winning%20Project-gold)](#)
 [![Open Source Ready](https://img.shields.io/badge/Open%20Source-Ready-brightgreen)](#)
 
 </div>
