@@ -567,5 +567,66 @@ class TestAgentsAndTools(unittest.TestCase):
         self.assertIn("92 each", result)
 
 
+    def test_multi_hop_m5_benchmark(self):
+        """Verifies M5 benchmark query: 'Compare TCS and Infosys on all eligibility criteria.'"""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+
+        query = "Compare TCS and Infosys on all eligibility criteria."
+        response = agent.process_query(query)
+
+        # Must be scope-aware, NOT full synthesis
+        self.assertIn("🎯 Eligibility Comparison: TCS vs Infosys", response)
+        self.assertIn("1️⃣ Minimum CGPA", response)
+        self.assertIn("TCS → 7.5", response)
+        self.assertIn("Infosys → 8.0", response)
+        self.assertIn("2️⃣ Backlogs Allowed", response)
+        self.assertIn("3️⃣ Bond Requirement", response)
+        self.assertIn("4️⃣ Technical Focus", response)
+        self.assertIn("🏆 Summary", response)
+        # Must NOT contain full-synthesis sections
+        self.assertNotIn("3️⃣ Hiring Distribution", response)
+        self.assertNotIn("4️⃣ Placement Trend", response)
+        self.assertNotIn("Overall Recommendation", response)
+
+    def test_multi_hop_m5_general(self):
+        """Verifies M5 mode for a general eligibility scope query."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+
+        query = "Compare Google and Amazon eligibility requirements."
+        response = agent.process_query(query)
+
+        self.assertIn("🎯 Eligibility Comparison: Google vs Amazon", response)
+        self.assertIn("1️⃣ Minimum CGPA", response)
+        self.assertIn("Google → 7.4", response)
+        self.assertIn("Amazon → 6.4", response)
+        self.assertIn("2️⃣ Backlogs Allowed", response)
+        self.assertIn("3️⃣ Bond Requirement", response)
+        self.assertIn("4️⃣ Technical Focus", response)
+        self.assertIn("🏆 Summary", response)
+        # Scope enforcement: no package/hiring/trend
+        self.assertNotIn("3️⃣ Hiring Distribution", response)
+        self.assertNotIn("4️⃣ Placement Trend", response)
+
+    def test_multi_hop_m5_full_synthesis_not_intercepted(self):
+        """Verifies full synthesis still fires when query includes 'all dimensions'."""
+        from app.agents.multi_hop_agent import MultiHopAgent
+        agent = MultiHopAgent()
+        agent.client = None
+
+        query = "H7 Compare Google and Amazon on all dimensions: eligibility, package, hiring, trend."
+        response = agent.process_query(query)
+
+        # Full synthesis must still run — not scope-aware
+        self.assertIn("Full Company Comparison: Google vs Amazon", response)
+        self.assertIn("1️⃣ Eligibility", response)
+        self.assertIn("2️⃣ Package", response)
+        self.assertIn("3️⃣ Hiring Distribution", response)
+        self.assertIn("4️⃣ Placement Trend (2021–2024)", response)
+
+
 if __name__ == "__main__":
     unittest.main()

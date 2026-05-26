@@ -486,6 +486,34 @@ Package (LPA) ÷ Minimum CGPA
             except Exception:
                 return self._format_computed_aggregation_local(top_5_list)
 
+        # M5. SCOPE-AWARE COMPARISON TRIGGER (runs BEFORE full synthesis)
+        # Fires when: 2 companies + comparison signal + scope keyword
+        # Scope is restricted to the explicitly requested dimension only.
+        _m5_comparison_signals = ["compare", "versus", "vs", "comparison"]
+        _m5_scope_keywords = [
+            "eligibility", "eligibility criteria", "requirements",
+            "criteria", "eligibility requirements"
+        ]
+        _m5_has_comparison = any(kw in query_lower for kw in _m5_comparison_signals)
+        _m5_has_scope      = any(kw in query_lower for kw in _m5_scope_keywords)
+
+        # Block if query ALSO asks for package/hiring/trend (then it's full synthesis)
+        _m5_override_keywords = [
+            "all dimensions", "package", "hiring", "trend", "complete comparison",
+            "full comparison", "recommendation", "career"
+        ]
+        _m5_is_full = any(kw in query_lower for kw in _m5_override_keywords)
+
+        if (
+            len(mentioned_companies) >= 2
+            and _m5_has_comparison
+            and _m5_has_scope
+            and not _m5_is_full
+        ):
+            return self.scope_aware_comparison_mode(
+                query, mentioned_companies, active_df
+            )
+
         # A. HARD FULL SYNTHESIS TRIGGER
         comparison_keywords = ["compare", "all dimensions", "eligibility", "package", "hiring", "trend", "full comparison", "complete comparison"]
         is_full_synthesis = (
@@ -1339,3 +1367,254 @@ Final Verdict:
             f"{summary_text}"
         )
         return response
+
+    # ── M5: Scope-Aware Multi-Attribute Comparison Mode ──────────────────────
+    def scope_aware_comparison_mode(
+        self,
+        query: str,
+        mentioned_companies: list,
+        df
+    ) -> str:
+        """
+        Compares exactly two companies restricted to the scope explicitly
+        requested in the query (e.g. eligibility criteria only).
+
+        Pipeline:
+          1. Detect scope → determine allowed comparison fields.
+          2. Deterministic DataFrame retrieval per company (exact match).
+          3. Attribute-by-attribute comparison formatting.
+          4. LLM generates ONLY the 1-sentence summary (no retrieval).
+
+        Strict rules:
+          - LLM MUST NOT retrieve. Python/DataFrame does all data access.
+          - Output MUST NOT include: package, hiring, trend, recommendation.
+          - Only the dimensions explicitly in scope are included.
+        """
+        query_lower = query.lower()
+        company_a = mentioned_companies[0]
+        company_b = mentioned_companies[1]
+
+        # ── Step 1: Detect scope & map to allowed DataFrame fields ───────────
+        # Currently supports: eligibility scope
+        # Additional scopes can be added here in future without breaking others.
+
+        eligibility_scope_keywords = [
+            "eligibility", "eligibility criteria", "requirements",
+            "criteria", "eligibility requirements"
+        ]
+        is_eligibility_scope = any(
+            kw in query_lower for kw in eligibility_scope_keywords
+        )
+
+        # Default scope: eligibility (this mode only fires on eligibility queries)
+        scope_label = "Eligibility"
+        allowed_fields = ["min_cgpa", "max_backlogs", "bond_years", "tech_focus"]
+
+        # ── Step 2: Deterministic retrieval — exact company match ─────────────
+        def _get_row(company_name: str):
+            """Returns a dict of allowed fields for the given company, or None."""
+            row = df[
+                df["company"].str.lower().str.replace(";", "").str.strip()
+                == company_name.lower()
+            ]
+            if row.empty:
+                return None
+            r = row.iloc[0]
+            return {
+                "min_cgpa":    float(r["min_cgpa"]),
+                "max_backlogs": int(r["max_backlogs"]),
+                "bond_years":  int(r["bond_years"]),
+                "tech_focus":  str(r["tech_focus"]),
+            }
+
+        data_a = _get_row(company_a)
+        data_b = _get_row(company_b)
+
+        if data_a is None or data_b is None:
+            missing = company_a if data_a is None else company_b
+            return (
+                f"⚠️ Eligibility data for {missing} could not be found "
+                "in the placement dataset."
+            )
+
+        # ── Step 3: Attribute-by-attribute comparison blocks ─────────────────
+        sections = []
+
+        # 1️⃣ Minimum CGPA
+        cgpa_a = data_a["min_cgpa"]
+        cgpa_b = data_b["min_cgpa"]
+        if cgpa_a < cgpa_b:
+            cgpa_note = (
+                f"📌 {company_a} is easier to qualify for due to "
+                "lower CGPA requirements."
+            )
+        elif cgpa_b < cgpa_a:
+            cgpa_note = (
+                f"📌 {company_b} is easier to qualify for due to "
+                "lower CGPA requirements."
+            )
+        else:
+            cgpa_note = "📌 Both companies have the same CGPA requirement."
+
+        sections.append(
+            f"1️⃣ Minimum CGPA\n\n"
+            f"{company_a} → {cgpa_a}\n"
+            f"{company_b} → {cgpa_b}\n\n"
+            f"{cgpa_note}"
+        )
+
+        # 2️⃣ Backlogs Allowed
+        bl_a = data_a["max_backlogs"]
+        bl_b = data_b["max_backlogs"]
+        if bl_a == 0 and bl_b == 0:
+            bl_note = "📌 Both companies require zero active backlogs."
+        elif bl_a > bl_b:
+            bl_note = (
+                f"📌 {company_a} is more lenient on backlogs "
+                f"(allows up to {bl_a})."
+            )
+        elif bl_b > bl_a:
+            bl_note = (
+                f"📌 {company_b} is more lenient on backlogs "
+                f"(allows up to {bl_b})."
+            )
+        else:
+            bl_note = (
+                f"📌 Both companies allow up to {bl_a} backlog(s)."
+            )
+
+        sections.append(
+            f"2️⃣ Backlogs Allowed\n\n"
+            f"{company_a} → {bl_a}\n"
+            f"{company_b} → {bl_b}\n\n"
+            f"{bl_note}"
+        )
+
+        # 3️⃣ Bond Requirement
+        bond_a = data_a["bond_years"]
+        bond_b = data_b["bond_years"]
+        bond_a_str = "No bond" if bond_a == 0 else f"{bond_a} year(s)"
+        bond_b_str = "No bond" if bond_b == 0 else f"{bond_b} year(s)"
+
+        if bond_a == 0 and bond_b == 0:
+            bond_note = "📌 Both companies have no bond requirement."
+        elif bond_a == 0:
+            bond_note = (
+                f"📌 {company_a} has no bond; {company_b} requires a "
+                f"{bond_b}-year bond."
+            )
+        elif bond_b == 0:
+            bond_note = (
+                f"📌 {company_b} has no bond; {company_a} requires a "
+                f"{bond_a}-year bond."
+            )
+        else:
+            bond_note = (
+                f"📌 {company_a} requires a {bond_a}-year bond; "
+                f"{company_b} requires a {bond_b}-year bond."
+            )
+
+        sections.append(
+            f"3️⃣ Bond Requirement\n\n"
+            f"{company_a} → {bond_a_str}\n"
+            f"{company_b} → {bond_b_str}\n\n"
+            f"{bond_note}"
+        )
+
+        # 4️⃣ Technical Focus
+        tf_a = data_a["tech_focus"]
+        tf_b = data_b["tech_focus"]
+        if tf_a.lower() == tf_b.lower():
+            tf_note = (
+                f"📌 Both companies focus on {tf_a} for technical interviews."
+            )
+        else:
+            tf_note = (
+                "📌 Technical interview focus differs between the two companies."
+            )
+
+        sections.append(
+            f"4️⃣ Technical Focus\n\n"
+            f"{company_a} → {tf_a}\n"
+            f"{company_b} → {tf_b}\n\n"
+            f"{tf_note}"
+        )
+
+        # ── Step 4: Summary (LLM formats; Python provides all facts) ─────────
+        # Build a plain-text fact sheet for the LLM — no retrieval allowed
+        fact_sheet = (
+            f"Company A: {company_a}\n"
+            f"  Min CGPA: {cgpa_a}, Backlogs: {bl_a}, "
+            f"Bond: {bond_a_str}, Tech: {tf_a}\n\n"
+            f"Company B: {company_b}\n"
+            f"  Min CGPA: {cgpa_b}, Backlogs: {bl_b}, "
+            f"Bond: {bond_b_str}, Tech: {tf_b}"
+        )
+
+        summary_text = ""
+        if self.client:
+            system_prompt = (
+                "You are a professional SVECW Placement Intelligence Analyst.\n"
+                "Write ONE concise sentence summarizing the eligibility comparison "
+                "between the two companies based ONLY on the provided facts.\n"
+                "CRITICAL RULES:\n"
+                "1. Base your answer STRICTLY on the supplied fact sheet.\n"
+                "2. DO NOT mention package, salary, hiring counts, trends, "
+                "or career recommendations.\n"
+                "3. Restrict your output to eligibility dimensions only "
+                "(CGPA, backlogs, bond, tech focus).\n"
+                "4. Output ONLY the raw summary sentence — no headers, "
+                "no markdown, no quotes."
+            )
+            user_content = (
+                f"Query: {query}\n\n"
+                f"Eligibility Fact Sheet:\n{fact_sheet}"
+            )
+            try:
+                chat_completion = self.client.chat.completions.create(
+                    model=settings.GROQ_TEXT_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ],
+                    temperature=0.1
+                )
+                summary_text = chat_completion.choices[0].message.content.strip()
+            except Exception as e:
+                print(f"[M5] Groq API error in Scope-Aware Comparison: {e}")
+                summary_text = ""
+
+        # Deterministic fallback summary
+        if not summary_text:
+            if cgpa_a < cgpa_b:
+                easier = company_a
+                harder = company_b
+            elif cgpa_b < cgpa_a:
+                easier = company_b
+                harder = company_a
+            else:
+                easier = None
+
+            if easier:
+                summary_text = (
+                    f"{easier} is easier to qualify for because of the lower "
+                    f"CGPA cutoff, while {harder} has stricter eligibility "
+                    "requirements."
+                )
+            else:
+                summary_text = (
+                    f"{company_a} and {company_b} have identical CGPA "
+                    "requirements; differences lie in bond and tech focus."
+                )
+
+        # ── Step 5: Assemble final response ──────────────────────────────────
+        separator = "\n\n---\n\n"
+        body = separator.join(sections)
+
+        return (
+            f"🎯 {scope_label} Comparison: {company_a} vs {company_b}\n\n"
+            + body
+            + f"\n\n---\n\n"
+            + f"🏆 Summary\n\n{summary_text}"
+        )
+
