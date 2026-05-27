@@ -190,7 +190,12 @@ class RouterAgent:
         )
         if comparison_trigger or dimension_count >= 2:
             print("⚡ Hard-routing comparison query → multi_hop_agent")
-            return self.multi_hop_agent.run(query)
+            return {
+                "agent": "multi_hop_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Hard routed comparison query detected.",
+                "cleaned_query": query
+            }
 
         # High-priority E6 Boolean Entity Query detection (override before other routing)
         _e6_bool_keywords = ["does", "allow", "allowed", "permit", "permits"]
