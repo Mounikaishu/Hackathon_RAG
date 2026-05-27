@@ -147,6 +147,14 @@ function App() {
   const [highlightGallery, setHighlightGallery] = useState(false);
   const [lightboxImg, setLightboxImg] = useState(null);
 
+  // Company image mapping for production assets
+  const companyImages = {
+    Amazon: '/images/Amazon.png',
+    Google: '/images/Google.png',
+    Infosys: '/images/Infosys.png',
+    Microsoft: '/images/Microsoft.png',
+    TCS: '/images/TCS.png',
+  };
   const chatMessagesEndRef = useRef(null);
 
   // Poll status counters and FastAPI connectivity
@@ -294,20 +302,21 @@ function App() {
       }
 
       // Prepare bot response with flexible keys
-      const botResponse =
+      console.log('Backend Response:', data);
+
+      const responseText =
         data.response ||
         data.answer ||
         data.message ||
+        data.result ||
         "No response generated.";
 
       setMessages(prev => [
         ...prev,
         {
-          sender: 'bot',
-          // Preserve agent info if available for UI badges
-          agent: data.routed_agent || 'unknown',
-          reason: data.routing_reason || '',
-          text: botResponse
+          type: 'assistant',
+          text: responseText,
+          routerTrace: data.router_trace || 'Processed successfully',
         }
       ]);
 
@@ -600,7 +609,7 @@ function App() {
                   className={`chart-thumb ${selectedChart === company ? 'active' : ''}`}
                   onClick={() => setSelectedChart(company)}
                 >
-                  <img                     src={`/images/${company}.png`} 
+                  <img                     src={companyImages[company] || `/images/${company}.png`} 
                     alt={company} 
                     onError={(e) => {
                       e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60" viewBox="0 0 100 60"><rect width="100%" height="100%" fill="%231e293b"/><text x="50%" y="50%" fill="%2394a3b8" dominant-baseline="middle" text-anchor="middle" font-size="10">Missing</text></svg>';
