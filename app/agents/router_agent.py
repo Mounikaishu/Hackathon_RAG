@@ -159,6 +159,38 @@ class RouterAgent:
         Uses hierarchical routing with High/Medium/Low confidence bands, margin analysis, and edge-case resolution.
         """
         query_lower = query.lower()
+        # ====================================================
+        # HARD OVERRIDE: Comparison Queries → Multi-Hop Agent
+        # ====================================================
+        comparison_keywords = [
+            "compare",
+            "vs",
+            "versus",
+            "difference",
+            "better",
+            "all dimensions"
+        ]
+        comparison_dimensions = [
+            "eligibility",
+            "package",
+            "hiring",
+            "trend",
+            "bond",
+            "cgpa",
+            "backlog",
+            "technical focus"
+        ]
+        comparison_trigger = any(
+            keyword in query_lower
+            for keyword in comparison_keywords
+        )
+        dimension_count = sum(
+            dimension in query_lower
+            for dimension in comparison_dimensions
+        )
+        if comparison_trigger or dimension_count >= 2:
+            print("⚡ Hard-routing comparison query → multi_hop_agent")
+            return self.multi_hop_agent.run(query)
 
         # High-priority E6 Boolean Entity Query detection (override before other routing)
         _e6_bool_keywords = ["does", "allow", "allowed", "permit", "permits"]
