@@ -568,7 +568,7 @@ function App() {
             <img                src={`/images/${selectedChart}.png`} 
               className="chart-img" 
               alt={`${selectedChart} Hiring Distribution`}
-              onClick={() => setLightboxImg(`/static/charts/${selectedChart}.png`)}
+              onClick={() => setLightboxImg(`/images/${selectedChart}.png`)}
               onError={(e) => {
                 e.target.style.display = 'none';
                 const sibling = e.target.nextSibling;
