@@ -315,6 +315,9 @@ function App() {
         ...prev,
         {
           type: 'assistant',
+          sender: 'bot',
+          agent: data.routed_agent || 'unknown',
+          reason: data.routing_reason || data.router_trace || 'Processed successfully',
           text: responseText,
           routerTrace: data.router_trace || 'Processed successfully',
         }
@@ -574,10 +577,10 @@ function App() {
           </div>
           
           <div className={`chart-viewer ${highlightGallery ? 'highlighted' : ''}`}>
-            <img                src={`/images/${selectedChart}.png`} 
+            <img                src={companyImages[selectedChart] || `/images/${selectedChart}.png`} 
               className="chart-img" 
               alt={`${selectedChart} Hiring Distribution`}
-              onClick={() => setLightboxImg(`/images/${selectedChart}.png`)}
+              onClick={() => setLightboxImg(companyImages[selectedChart] || `/images/${selectedChart}.png`)}
               onError={(e) => {
                 e.target.style.display = 'none';
                 const sibling = e.target.nextSibling;
