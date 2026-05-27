@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 
+// Hardcoded backend URL for API calls
+const API_URL = "https://hackathon-rag.onrender.com";
+
 // Custom lightweight Markdown parser for formatting text, bold styling, lists, and tables
 const MarkdownRenderer = ({ text }) => {
   if (!text) return null;
@@ -149,7 +152,7 @@ function App() {
   // Poll status counters and FastAPI connectivity
   const fetchStatus = async () => {
     try {
-      const response = await fetch('/api/status');
+      const response = await fetch(`${API_URL}/status`);
       if (response.ok) {
         const data = await response.json();
         setStats({
@@ -182,7 +185,7 @@ function App() {
     if (isIndexing) return;
     setIsIndexing(true);
     try {
-      const response = await fetch('/api/index', { method: 'POST' });
+      const response = await fetch(`${API_URL}/index`, { method: 'POST' });
       if (response.ok) {
         alert('Indexing pipeline started in the background. It will take a few moments to ingest the PDF data.');
       } else {
@@ -214,9 +217,9 @@ function App() {
     const formData = new FormData();
     formData.append('file', file);
 
-    let endpoint = '/api/upload/pdf';
-    if (type === 'table') endpoint = '/api/upload/table';
-    if (type === 'image') endpoint = '/api/upload/image';
+    let endpoint = `${API_URL}/upload/pdf`;
+    if (type === 'table') endpoint = `${API_URL}/upload/table`;
+    if (type === 'image') endpoint = `${API_URL}/upload/image`;
 
     try {
       const response = await fetch(endpoint, {
@@ -261,7 +264,7 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/query', {
+      const response = await fetch(`${API_URL}/query`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
