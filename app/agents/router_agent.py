@@ -159,6 +159,41 @@ class RouterAgent:
         Uses hierarchical routing with High/Medium/Low confidence bands, margin analysis, and edge-case resolution.
         """
         query_lower = query.lower()
+        # High-priority M6 override: targeted hiring comparison (2 companies + role + comparison trigger)
+        # Route to vision_agent for deterministic DataFrame comparison.
+        _m6_comparison_triggers = ["versus", "vs", "compare", "difference between"]
+        _m6_role_keywords = ["sde", "intern", "interns", "analyst", "analysts", "officer", "officers"]
+        _m6_company_names = ["amazon", "google", "tcs", "infosys", "microsoft",
+                              "wipro", "cognizant", "accenture", "flipkart", "oracle", "ibm"]
+        _m6_companies_found = [c for c in _m6_company_names if c in query_lower]
+        _m6_has_comparison = any(kw in query_lower for kw in _m6_comparison_triggers)
+        _m6_has_role = any(kw in query_lower for kw in _m6_role_keywords)
+        if len(_m6_companies_found) >= 2 and _m6_has_comparison and _m6_has_role:
+            print("⚡ M6 targeted hiring comparison → vision_agent")
+            return {
+                "agent": "vision_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "M6 targeted hiring comparison query detected (2 companies + role + comparison trigger).",
+                "cleaned_query": query
+            }
+
+        # High-priority 3-condition optimization override BEFORE generic comparison routing
+        student_keywords = ["student", "cgpa", "backlog", "backlogs"]
+        preference_keywords = ["maximum pay", "highest pay", "highest package", "best package",
+                               "maximum package", "no bond", "without bond"]
+        constraint_keywords = ["with", "wants", "eligible", "can apply"]
+        has_student = any(k in query_lower for k in student_keywords)
+        has_preference = any(k in query_lower for k in preference_keywords)
+        has_constraint = any(k in query_lower for k in constraint_keywords)
+        if has_student and has_preference and has_constraint:
+            print("⚡ Hard 3-condition optimization → multi_hop_agent")
+            return {
+                "agent": "multi_hop_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Hard 3-condition optimization query detected.",
+                "cleaned_query": query
+            }
+
         # ====================================================
         # HARD OVERRIDE: Comparison Queries → Multi-Hop Agent
         # ====================================================
