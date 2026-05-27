@@ -152,13 +152,14 @@ function App() {
   // Poll status counters and FastAPI connectivity
   const fetchStatus = async () => {
     try {
-      const response = await fetch(`${API_URL}/status`);
+      // Use the backend's /test endpoint for health checking
+      const response = await fetch(`${API_URL}/test`);
       if (response.ok) {
         const data = await response.json();
         setStats({
-          companiesCount: data.structured_database.companies_count,
-          vectorsCount: data.vector_database.chunks_count,
-          chartsCount: data.charts_gallery.charts_count
+          companiesCount: data.structured_database?.companies_count ?? 0,
+          vectorsCount: data.vector_database?.chunks_count ?? 0,
+          chartsCount: data.charts_gallery?.charts_count ?? 0
         });
         setIsConnected(true);
       } else {
