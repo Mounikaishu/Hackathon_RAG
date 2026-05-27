@@ -147,13 +147,13 @@ function App() {
   const [highlightGallery, setHighlightGallery] = useState(false);
   const [lightboxImg, setLightboxImg] = useState(null);
 
-  // Company image mapping for production assets
+  // Company image mapping — loaded from backend static assets (data/processed/charts/)
   const companyImages = {
-    Amazon: '/images/Amazon.png',
-    Google: '/images/Google.png',
-    Infosys: '/images/Infosys.png',
-    Microsoft: '/images/Microsoft.png',
-    TCS: '/images/TCS.png',
+    Amazon: `${API_URL}/static/charts/Amazon.png`,
+    Google: `${API_URL}/static/charts/Google.png`,
+    Infosys: `${API_URL}/static/charts/Infosys.png`,
+    Microsoft: `${API_URL}/static/charts/Microsoft.png`,
+    TCS: `${API_URL}/static/charts/TCS.png`,
   };
   const chatMessagesEndRef = useRef(null);
 
@@ -612,7 +612,7 @@ function App() {
                   className={`chart-thumb ${selectedChart === company ? 'active' : ''}`}
                   onClick={() => setSelectedChart(company)}
                 >
-                  <img                     src={companyImages[company] || `/images/${company}.png`} 
+                  <img                     src={companyImages[company] || `${API_URL}/static/charts/${company}.png`} 
                     alt={company} 
                     onError={(e) => {
                       e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60" viewBox="0 0 100 60"><rect width="100%" height="100%" fill="%231e293b"/><text x="50%" y="50%" fill="%2394a3b8" dominant-baseline="middle" text-anchor="middle" font-size="10">Missing</text></svg>';

@@ -26,13 +26,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. MANDATORY: Fail-fast router initialization
+# 1. Soft-fail router initialization — backend must start even if model load fails
 try:
     print("🚀 Initializing Router Agent...")
     router = RouterAgent()
     print("✅ Router Agent initialized successfully.")
 except Exception as e:
-    raise RuntimeError(f"Router initialization failed: {e}")
+    print(f"⚠️ Router Agent initialization warning: {e}")
+    router = None
 
 # Mount processed directory to serve static assets (such as charts PNGs)
 import os

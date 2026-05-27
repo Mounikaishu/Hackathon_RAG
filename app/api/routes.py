@@ -27,14 +27,21 @@ class QueryResponse(BaseModel):
     routing_reason: str
     response: str
 
-# Instantiate Agents globally for session reuse
-router_agent = RouterAgent()
-rag_agent = RagAgent()
-dataframe_agent = DataframeAgent()
-vision_agent = VisionAgent()
-conflict_agent = ConflictAgent()
-web_search_agent = WebSearchAgent()
-multi_hop_agent = MultiHopAgent()
+# Instantiate Agents globally for session reuse — soft-fail per agent
+def _safe_init(cls, **kwargs):
+    try:
+        return cls(**kwargs)
+    except Exception as e:
+        print(f"⚠️ Failed to init {cls.__name__}: {e}")
+        return None
+
+router_agent = _safe_init(RouterAgent)
+rag_agent = _safe_init(RagAgent)
+dataframe_agent = _safe_init(DataframeAgent)
+vision_agent = _safe_init(VisionAgent)
+conflict_agent = _safe_init(ConflictAgent)
+web_search_agent = _safe_init(WebSearchAgent)
+multi_hop_agent = _safe_init(MultiHopAgent)
 
 def run_indexing_background(pdf_path: str):
     """Triggers the heavy indexing pipeline in a background thread."""
@@ -152,6 +159,10 @@ async def query_system(request: QueryRequest):
         target_agent = "web_search_agent"
         reason = "User explicitly forced web search mode." if request.force_web_search else f"Query is global-only scope (matched external phrase '{matched_external}')."
         company = None
+    elif router_agent is None:
+        target_agent = "rag_agent"
+        reason = "Router agent unavailable, defaulting to RAG agent."
+        company = None
     else:
         route_details = router_agent.route_query(query)
         target_agent = route_details["agent"]
@@ -161,19 +172,21 @@ async def query_system(request: QueryRequest):
     # 2. Invoke the target specialized agent
     response_text = ""
     try:
-        if target_agent == "dataframe_agent":
+        if target_agent == "dataframe_agent" and dataframe_agent:
             response_text = dataframe_agent.process_query(query)
-        elif target_agent == "multi_hop_agent":
+        elif target_agent == "multi_hop_agent" and multi_hop_agent:
             response_text = multi_hop_agent.process_query(query)
-        elif target_agent == "vision_agent":
+        elif target_agent == "vision_agent" and vision_agent:
             response_text = vision_agent.process_query(query)
-        elif target_agent == "conflict_agent":
+        elif target_agent == "conflict_agent" and conflict_agent:
             response_text = conflict_agent.process_query(query, company=company)
-        elif target_agent == "web_search_agent":
+        elif target_agent == "web_search_agent" and web_search_agent:
             response_text = web_search_agent.process_query(query)
-        else:
+        elif rag_agent:
             # Default fallback: RAG agent
             response_text = rag_agent.process_query(query, company_filter=company)
+        else:
+            response_text = "⚠️ Backend agents are still initializing. Please retry in a moment."
     except Exception as e:
         response_text = f"❌ Agent Routing Execution Error: {str(e)}"
         target_agent = "error_agent"
@@ -290,19 +303,35 @@ async def upload_image(file: UploadFile = File(...)):
 @router.get("/status")
 async def check_status():
     """Returns database status and document count statistics."""
-    df = dataframe_agent.pandas_tool.df
-    db = rag_agent.db_manager.collection
-    
-    total_companies = len(df) if not df.empty else 0
+    # Guard against agents that failed to initialize
+    total_companies = 0
+    total_vectors = 0
+
     try:
-        total_vectors = db.count()
+        if dataframe_agent and hasattr(dataframe_agent, "pandas_tool"):
+            df = dataframe_agent.pandas_tool.df
+            total_companies = len(df) if df is not None and not df.empty else 0
     except Exception:
-        total_vectors = 0
+        pass
+
+    try:
+        if rag_agent and hasattr(rag_agent, "db_manager"):
+            db = rag_agent.db_manager.collection
+            total_vectors = db.count()
+    except Exception:
+        pass
+
+    charts_count = 0
+    try:
+        if os.path.exists(settings.CHARTS_DIR):
+            charts_count = len(os.listdir(settings.CHARTS_DIR))
+    except Exception:
+        pass
 
     return {
         "status": "active",
         "structured_database": {
-            "loaded": not df.empty,
+            "loaded": total_companies > 0,
             "companies_count": total_companies
         },
         "vector_database": {
@@ -310,8 +339,8 @@ async def check_status():
             "chunks_count": total_vectors
         },
         "charts_gallery": {
-            "loaded": os.path.exists(settings.CHARTS_DIR) and len(os.listdir(settings.CHARTS_DIR)) > 0,
-            "charts_count": len(os.listdir(settings.CHARTS_DIR)) if os.path.exists(settings.CHARTS_DIR) else 0
+            "loaded": charts_count > 0,
+            "charts_count": charts_count
         }
     }
 
