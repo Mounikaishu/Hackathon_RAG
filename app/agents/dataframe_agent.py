@@ -19,6 +19,21 @@ class DataframeAgent:
     def process_query(self, query: str) -> str:
         """Processes tabular query through code generation, execution, and synthesis."""
         query_lower = query.lower()
+        # E6: Boolean Entity Query Mode
+        _e6_bool_keywords = ["does", "allow", "allowed", "permit", "permits"]
+        _e6_attr_keywords = ["backlog", "backlogs", "bond", "bonds"]
+        _e6_company_keywords = [
+            "microsoft", "amazon", "google", "tcs", "infosys",
+            "wipro", "ibm", "oracle"
+        ]
+        _e6_list_keywords = ["list", "which companies", "all companies"]
+        if (
+            any(kw in query_lower for kw in _e6_bool_keywords)
+            and any(kw in query_lower for kw in _e6_attr_keywords)
+            and any(kw in query_lower for kw in _e6_company_keywords)
+            and not any(kw in query_lower for kw in _e6_list_keywords)
+        ):
+            return self.boolean_entity_query_mode(query)
 
         # E2: Backlog Direct Lookup Mode
         _e2_backlog_keywords = ["backlog", "backlogs", "active backlogs", "max backlogs"]
@@ -81,21 +96,7 @@ class DataframeAgent:
         ):
             return self.direct_table_lookup_mode(query)
 
-        # E6: Boolean Entity Query Mode
-        _e6_bool_keywords = ["does", "allow", "allowed", "permit", "permits"]
-        _e6_attr_keywords = ["backlog", "backlogs", "bond", "bonds"]
-        _e6_company_keywords = [
-            "microsoft", "amazon", "google", "tcs", "infosys",
-            "wipro", "ibm", "oracle"
-        ]
-        _e6_list_keywords = ["list", "which companies", "all companies"]
-        if (
-            any(kw in query_lower for kw in _e6_bool_keywords)
-            and any(kw in query_lower for kw in _e6_attr_keywords)
-            and any(kw in query_lower for kw in _e6_company_keywords)
-            and not any(kw in query_lower for kw in _e6_list_keywords)
-        ):
-            return self.boolean_entity_query_mode(query)
+
 
         # E8: Easy Text Retrieval Mode
         _e8_tech_keywords = [
@@ -671,10 +672,15 @@ class DataframeAgent:
             max_backlogs = int(company_row["max_backlogs"].iloc[0])
             allowed = max_backlogs > 0
             
-            val_str = f"{max_backlogs} active backlog" if max_backlogs == 1 else f"{max_backlogs} active backlogs"
-            summary_desc = f"permits up to {max_backlogs} active backlog" if max_backlogs == 1 else f"permits up to {max_backlogs} active backlogs"
             if max_backlogs == 0:
+                val_str = "0 active backlogs"
                 summary_desc = "requires zero active backlogs"
+            elif max_backlogs == 1:
+                val_str = "1 active backlog"
+                summary_desc = "permits up to 1 active backlog"
+            else:
+                val_str = f"{max_backlogs} active backlogs"
+                summary_desc = f"permits up to {max_backlogs} active backlogs"
             
             result_line = "✅ Yes, " + display_company + " allows backlogs." if allowed else "❌ No, " + display_company + " does not allow backlogs."
             

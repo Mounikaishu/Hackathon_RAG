@@ -11,7 +11,7 @@ class RouterAgent:
     using Semantic Intent Routing via SentenceTransformers and fallback rule-matching.
     """
 
-    def __init__(self, threshold: float = 0.35):
+    def __init__(self, threshold: float = 0.25):
         self.api_key = settings.GROQ_API_KEY
         self.client = None
         if self.api_key:
@@ -101,6 +101,22 @@ class RouterAgent:
         """
         query_lower = query.lower()
 
+        # High-priority E6 Boolean Entity Query override
+        _e6_bool_keywords = ["does", "allow", "allowed", "permit", "permits"]
+        _e6_attr_keywords = ["backlog", "backlogs", "bond", "bonds"]
+        _e6_company_keywords = ["microsoft", "amazon", "google", "tcs", "infosys", "wipro", "ibm", "oracle"]
+        _e6_list_keywords = ["list", "which companies", "all companies"]
+        if (any(kw in query_lower for kw in _e6_bool_keywords) and
+            any(kw in query_lower for kw in _e6_attr_keywords) and
+            any(kw in query_lower for kw in _e6_company_keywords) and
+            not any(kw in query_lower for kw in _e6_list_keywords)):
+            return "dataframe_agent"
+
+        # NEW: Direct attribute lookup overrides – company + attribute keywords go to dataframe_agent
+        attribute_keywords = ["cgpa", "backlog", "backlogs", "bond", "package", "salary", "lpa", "technology", "tech stack", "focus", "eligibility"]
+        if entities.get("company") and any(kw in query_lower for kw in attribute_keywords):
+            return "dataframe_agent"
+
         # CASE A: Eligibility Recommendation -> multi_hop_agent
         eligibility_phrases = [
             "where can i apply", "am i eligible", "what companies", 
@@ -144,6 +160,22 @@ class RouterAgent:
         """
         query_lower = query.lower()
 
+        # High-priority E6 Boolean Entity Query detection (override before other routing)
+        _e6_bool_keywords = ["does", "allow", "allowed", "permit", "permits"]
+        _e6_attr_keywords = ["backlog", "backlogs", "bond", "bonds"]
+        _e6_company_keywords = ["microsoft", "amazon", "google", "tcs", "infosys", "wipro", "ibm", "oracle"]
+        _e6_list_keywords = ["list", "which companies", "all companies"]
+        if (any(kw in query_lower for kw in _e6_bool_keywords) and
+            any(kw in query_lower for kw in _e6_attr_keywords) and
+            any(kw in query_lower for kw in _e6_company_keywords) and
+            not any(kw in query_lower for kw in _e6_list_keywords)):
+            return {
+                "agent": "dataframe_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Boolean entity query detected.",
+                "cleaned_query": query
+            }
+
         # High-priority routing override BEFORE semantic routing
         conflict_keywords = [
             "conflict",
@@ -158,11 +190,11 @@ class RouterAgent:
         ]
         if any(kw in query_lower for kw in conflict_keywords):
             return {
-                "agent": "conflict_agent",
-                "entities": self._extract_entities_local(query),
-                "reason": "High-priority routing override: conflict keyword matched.",
-                "cleaned_query": query
-            }
+            "agent": "conflict_agent",
+            "entities": self._extract_entities_local(query),
+            "reason": "High-priority routing override: conflict keyword matched.",
+            "cleaned_query": query
+        }
 
         # High-priority M6 override: targeted hiring comparison (2 companies + role + comparison trigger)
         # Route to vision_agent for deterministic DataFrame comparison; NOT full synthesis
@@ -171,6 +203,7 @@ class RouterAgent:
         _m6_company_names       = ["amazon", "google", "tcs", "infosys", "microsoft",
                                     "wipro", "cognizant", "accenture", "flipkart", "oracle", "ibm"]
 
+        # Find companies present in query (simple substring match)
         _m6_companies_found = [c for c in _m6_company_names if c in query_lower]
         _m6_has_comparison  = any(kw in query_lower for kw in _m6_comparison_triggers)
         _m6_has_role        = any(kw in query_lower for kw in _m6_role_keywords)
@@ -482,9 +515,12 @@ class RouterAgent:
 
         # 1. Classify Ambiguity / Confidence state
         is_ambiguous = margin < 0.10
-        is_high = best_score > 0.55
-        is_medium = 0.30 <= best_score <= 0.55
-        is_low = best_score < 0.30
+        # Use configurable threshold for low confidence
+        low_cutoff = self.threshold
+        high_cutoff = 0.55
+        is_high = best_score > high_cutoff
+        is_medium = low_cutoff <= best_score <= high_cutoff
+        is_low = best_score < low_cutoff
 
         # 2. Invoke Edge-Case Resolver if medium/low confidence or ambiguous
         resolved_agent = None
