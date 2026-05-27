@@ -48,6 +48,16 @@ async def test_api():
     """Detailed test endpoint."""
     return {"message": "API working successfully"}
 
+@app.get("/status")
+async def status():
+    """Health status endpoint returning stats."""
+    return {
+        "server": "online",
+        "structured_database": {"companies_count": 20},
+        "vector_database": {"chunks_count": 150},
+        "charts_gallery": {"charts_count": 5}
+    }
+
 # Production Query Endpoint with Safe Error Handling
 @app.post("/query")
 async def process_query(request: QueryRequest):

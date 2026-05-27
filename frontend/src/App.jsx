@@ -153,7 +153,8 @@ function App() {
   const fetchStatus = async () => {
     try {
       // Use the backend's /test endpoint for health checking
-      const response = await fetch(`${API_URL}/test`);
+      // Use the backend's /status endpoint for health checking
+      const response = await fetch(`${API_URL}/status`);
       if (response.ok) {
         const data = await response.json();
         setStats({
@@ -292,16 +293,24 @@ function App() {
         setTimeout(() => setHighlightGallery(false), 3000);
       }
 
-      // Add bot message
+      // Prepare bot response with flexible keys
+      const botResponse =
+        data.response ||
+        data.answer ||
+        data.message ||
+        "No response generated.";
+
       setMessages(prev => [
         ...prev,
         {
           sender: 'bot',
-          agent: data.routed_agent,
-          reason: data.routing_reason,
-          text: data.response
+          // Preserve agent info if available for UI badges
+          agent: data.routed_agent || 'unknown',
+          reason: data.routing_reason || '',
+          text: botResponse
         }
       ]);
+
 
     } catch (err) {
       setMessages(prev => [
@@ -556,8 +565,7 @@ function App() {
           </div>
           
           <div className={`chart-viewer ${highlightGallery ? 'highlighted' : ''}`}>
-            <img 
-              src={`/static/charts/${selectedChart}.png`} 
+            <img                src={`/images/${selectedChart}.png`} 
               className="chart-img" 
               alt={`${selectedChart} Hiring Distribution`}
               onClick={() => setLightboxImg(`/static/charts/${selectedChart}.png`)}
@@ -592,8 +600,7 @@ function App() {
                   className={`chart-thumb ${selectedChart === company ? 'active' : ''}`}
                   onClick={() => setSelectedChart(company)}
                 >
-                  <img 
-                    src={`/static/charts/${company}.png`} 
+                  <img                     src={`/images/${company}.png`} 
                     alt={company} 
                     onError={(e) => {
                       e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60" viewBox="0 0 100 60"><rect width="100%" height="100%" fill="%231e293b"/><text x="50%" y="50%" fill="%2394a3b8" dominant-baseline="middle" text-anchor="middle" font-size="10">Missing</text></svg>';
