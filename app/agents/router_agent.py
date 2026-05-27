@@ -488,6 +488,17 @@ class RouterAgent:
                 "cleaned_query": query
             }
 
+                # Hard routing for comparison queries
+        comparison_keywords = ["compare", "vs", "versus", "difference", "better", "all dimensions"]
+        comparison_dimensions = ["eligibility", "package", "hiring", "trend", "bond", "cgpa", "backlog", "technical focus"]
+        if (any(k in query_lower for k in comparison_keywords) or sum(d in query_lower for d in comparison_dimensions) >= 2):
+            return {
+                "agent": "multi_hop_agent",
+                "entities": self._extract_entities_local(query),
+                "reason": "Hard routed comparison query detected.",
+                "cleaned_query": query
+            }
+
         # Compute query embedding (lazy loads model on first query)
         q_emb = self._get_model().encode(query, convert_to_numpy=True)
         
