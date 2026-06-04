@@ -17,4 +17,3 @@ pydantic-settings>=2.0.0
 streamlit==1.45.1
 python-multipart
 huggingface_hub==0.25.2
-#added tools
